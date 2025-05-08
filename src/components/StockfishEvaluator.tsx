@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createStockfish } from '../lib/stockfishWorkerWrapper';
 
 type EvaluationResult = number | string | null;
 
@@ -14,7 +13,7 @@ const StockfishEvaluator: React.FC = () => {
   const stockfishRef = useRef<Worker | null>(null);
 
   useEffect(() => {
-    const engine = createStockfish();
+    const engine = new Worker('/stockfish-nnue-16-single.js', { type: 'classic' });
     stockfishRef.current = engine;
 
     engine.onmessage = (e) => {
