@@ -1,0 +1,50 @@
+<svg width="480" height="480" xmlns="http://www.w3.org/2000/svg">
+  <!-- Generate the squares -->
+  <rect width="480" height="480" fill="#f0d9b5"></rect>
+  <!-- Draw dark squares -->
+  <g fill="#b58863">
+    <!-- Iterate over rows and columns -->
+    <!-- Dark squares appear on even rows at odd columns and on odd rows at even columns -->
+    <!-- Each square is 60x60 -->
+    <!-- Row 0 -->
+    <rect x="60" y="0" width="60" height="60"></rect>
+    <rect x="180" y="0" width="60" height="60"></rect>
+    <rect x="300" y="0" width="60" height="60"></rect>
+    <rect x="420" y="0" width="60" height="60"></rect>
+    <!-- Row 1 -->
+    <rect x="0" y="60" width="60" height="60"></rect>
+    <rect x="120" y="60" width="60" height="60"></rect>
+    <rect x="240" y="60" width="60" height="60"></rect>
+    <rect x="360" y="60" width="60" height="60"></rect>
+    <!-- Row 2 -->
+    <rect x="60" y="120" width="60" height="60"></rect>
+    <rect x="180" y="120" width="60" height="60"></rect>
+    <rect x="300" y="120" width="60" height="60"></rect>
+    <rect x="420" y="120" width="60" height="60"></rect>
+    <!-- Row 3 -->
+    <rect x="0" y="180" width="60" height="60"></rect>
+    <rect x="120" y="180" width="60" height="60"></rect>
+    <rect x="240" y="180" width="60" height="60"></rect>
+    <rect x="360" y="180" width="60" height="60"></rect>
+    <!-- Row 4 -->
+    <rect x="60" y="240" width="60" height="60"></rect>
+    <rect x="180" y="240" width="60" height="60"></rect>
+    <rect x="300" y="240" width="60" height="60"></rect>
+    <rect x="420" y="240" width="60" height="60"></rect>
+    <!-- Row 5 -->
+    <rect x="0" y="300" width="60" height="60"></rect>
+    <rect x="120" y="300" width="60" height="60"></rect>
+    <rect x="240" y="300" width="60" height="60"></rect>
+    <rect x="360" y="300" width="60" height="60"></rect>
+    <!-- Row 6 -->
+    <rect x="60" y="360" width="60" height="60"></rect>
+    <rect x="180" y="360" width="60" height="60"></rect>
+    <rect x="300" y="360" width="60" height="60"></rect>
+    <rect x="420" y="360" width="60" height="60"></rect>
+    <!-- Row 7 -->
+    <rect x="0" y="420" width="60" height="60"></rect>
+    <rect x="120" y="420" width="60" height="60"></rect>
+    <rect x="240" y="420" width="60" height="60"></rect>
+    <rect x="360" y="420" width="60" height="60"></rect>
+  </g>
+</svg>

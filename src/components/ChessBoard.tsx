@@ -1,0 +1,260 @@
+import { useState } from 'react';
+import { Chess, Square } from 'chess.js';
+import { useRef, useEffect } from "react";
+import PawnPromotion from './PawnPromotion';
+
+interface Move {
+  index: number; 
+  row: number; 
+  col: number; 
+  display: string; 
+}
+
+interface Piece {
+  piece: 'p' | 'n' | 'b' | 'r' | 'q' | 'k'; 
+  color: 'w' | 'b'; 
+  position: {
+    square: string; 
+    row: number; 
+    col: number; 
+  };
+  validMoves: Move[]; 
+  display: string; 
+}
+
+interface Promotion {
+  currentSquare: string;      
+  targetSquare: string;       
+  color: 'w' | 'b';         
+  promotion: 'q' | 'r' | 'b' | 'n' | null; 
+}
+
+const createChessboardColors = () => {
+  const lightSquare = "#f0d9b5";
+  const darkSquare = "#b58863";
+  
+  const boardColors = Array.from({ length: 8 }, (_, row) => {
+    return Array.from({ length: 8 }, (_, col) => {
+      return (row + col) % 2 === 0 ? lightSquare : darkSquare;
+    });
+  });
+  
+  return boardColors;
+};
+
+const darkenColor = (color: string, amount: number) => {
+  const hex = color.replace('#', '');
+  const rgb = parseInt(hex, 16);
+  const r = Math.max(0, Math.floor((rgb >> 16) * (1 - amount)));
+  const g = Math.max(0, Math.floor(((rgb >> 8) & 0xff) * (1 - amount)));
+  const b = Math.max(0, Math.floor((rgb & 0xff) * (1 - amount)));
+  return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+};
+
+function algebraicNotation(row: number, col: number): Square {
+  const file = String.fromCharCode('a'.charCodeAt(0) + col);
+  const rank = 8 - row;
+  return (file + rank) as Square;
+}
+
+function getTurnFromFen(fenString: string): 'w' | 'b' | null {
+  try {
+    const chess = new Chess(fenString);
+    return chess.turn();
+  } catch (error) {
+    console.error("Invalid FEN string:", error);
+    return null;
+  }
+}
+
+function parseFenAndGetMoves(fenString: string) {
+  try {
+    const chess = new Chess(fenString);
+    const boardPieces = [];
+    
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const square = algebraicNotation(row, col);
+        const piece = chess.get(square);
+        if (piece) {
+          const moves = chess.moves({
+            square: square,
+            verbose: true
+          });
+          
+          const validMoves = moves.map((move, index) => {
+            const moveRow = 8 - parseInt(move.to.charAt(1));
+            const moveCol = move.to.charCodeAt(0) - 'a'.charCodeAt(0);
+            return {
+              index,
+              row: moveRow,
+              col: moveCol,
+              display: `#${index}(${moveRow}, ${moveCol})`
+            };
+          });
+          
+          boardPieces.push({
+            piece: piece.type,
+            color: piece.color,
+            position: {
+              square,
+              row,
+              col
+            },
+            validMoves: validMoves,
+            display: `current square: (${row}, ${col})\nvalid square in the next turn: ${validMoves.map(m => m.display).join(', ')}`
+          });
+        }
+      }
+    }
+    
+    return boardPieces;
+  } catch (error) {
+    console.error("Invalid FEN string:", error);
+    return [];
+  }
+}
+
+// function PawnPromotion({handlePromotion }: {handlePromotion: (promoteTo: 'q' | 'r' | 'b' | 'n') => void }) {
+//   return (
+//     <div className="absolute top-0 left-0 bg-white p-4">
+//       <h2>Promote to:</h2>
+//       <button onClick={() => handlePromotion('q')}>Queen</button>
+//       <button onClick={() => handlePromotion('r')}>Rook</button>
+//       <button onClick={() => handlePromotion('b')}>Bishop</button>
+//       <button onClick={() => handlePromotion('n')}>Knight</button>
+//     </div>
+//   );
+// }
+
+export default function ChessBoard() {
+  const boardColors = createChessboardColors();
+  const startingPosition = new Chess();
+
+  const [fen, setFen] = useState(startingPosition.fen());
+  const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
+  const [highlight, setHighlight] = useState(
+    Array.from({ length: 8 }, () => Array(8).fill(0))
+  );
+  const [promotion, setPromotion] = useState<Promotion | null>(null);
+
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  const handleSelect = (piece: Piece) => {
+    if (piece.position.square === selectedPiece?.position.square) {
+      setHighlight(Array.from({ length: 8 }, () => Array(8).fill(0)));
+      setSelectedPiece(null);
+      return;
+    }
+    const selectedPieceCoordinates = {
+      row: piece.position.row,
+      col: piece.position.col,
+    };
+  
+    const validMoveCoordinates = piece.validMoves.map((move: { row: number; col: number; }) => ({
+      row: move.row,
+      col: move.col,
+    }));
+  
+    const newHighlight = Array.from({ length: 8 }, () => Array(8).fill(0));
+    newHighlight[selectedPieceCoordinates.row][selectedPieceCoordinates.col] = 1;
+    validMoveCoordinates.forEach(move => {
+      newHighlight[move.row][move.col] = 1;
+    });
+    
+    setHighlight(newHighlight);
+    setSelectedPiece(piece);
+  };
+
+  const handleSquare = (row: number, col:number) => {
+    setHighlight(Array.from({ length: 8 }, () => Array(8).fill(0)));
+    setSelectedPiece(null);
+    console.log(row, col)
+    if(highlight[row][col] == 1) {
+      const currentSquare = selectedPiece!.position.square;
+      const targetSquare = algebraicNotation(row, col);
+      const newPosition = new Chess(fen);
+      try {
+        newPosition.move({ from: currentSquare, to: targetSquare });
+      } catch {
+        setPromotion({
+          currentSquare: currentSquare,
+          targetSquare: targetSquare,
+          color: selectedPiece!.color,
+          promotion: null
+        });
+        return
+      }
+      setFen(newPosition.fen());
+    }
+  }
+
+  useEffect(() => {
+    const board = boardRef.current;
+    const turn = getTurnFromFen(fen);
+    const boardData = parseFenAndGetMoves(fen);
+    if (board) {
+      const existingPieces = board.querySelectorAll(".chess-piece");
+      existingPieces.forEach(piece => piece.remove());
+    
+      for (const piece of boardData) {
+        const label = piece.color + piece.piece.toUpperCase();
+        const { row, col } = piece.position;
+        const pieceElement = document.createElement("img");
+        pieceElement.src = `/chess/${label}.svg`;
+        pieceElement.classList.add("chess-piece", "absolute", "w-1/8", "h-1/8");
+        pieceElement.style.left = `${col * 12.5}%`;
+        pieceElement.style.top = `${row * 12.5}%`;
+    
+        if (piece.color === turn) {
+          pieceElement.onclick = () => handleSelect(piece);
+        } else {
+          pieceElement.classList.add("pointer-events-none");
+        }
+    
+        board.appendChild(pieceElement);
+      }
+    }
+  }, [fen]);  
+
+  return (
+    <div className='flex flex-row w-full aspect-8/7 bg-black gap-2'>
+      <div className="flex flex-row flex-wrap h-full aspect-square relative" ref={boardRef}>
+        {promotion && (
+          <PawnPromotion color={promotion.color} handlePromotion={(promoteTo) => {
+            const newPosition = new Chess(fen);
+            newPosition.move({
+              from: promotion.currentSquare,
+              to: promotion.targetSquare,
+              promotion: promoteTo
+            });
+            setFen(newPosition.fen());
+            setPromotion(null);
+          }} />
+        )}        
+        {boardColors.map((row, rowIndex) => (
+          row.map((color, colIndex) => {
+            const squareIndex = rowIndex * 8 + colIndex;
+            const isHighlighted = highlight[rowIndex][colIndex] === 1;
+            const borderColor = isHighlighted ? darkenColor(color, 0.2) : color;
+            
+            return (
+              <div
+                key={squareIndex}
+                className="w-1/8 h-1/8"
+                style={{ 
+                  backgroundColor: color, 
+                  boxSizing: 'border-box',
+                  boxShadow: `0px 0px 0px 8px ${borderColor} inset` 
+                }}
+                onClick={() => handleSquare(rowIndex, colIndex)}
+              ></div>
+            );
+          })
+        ))}
+      </div>
+      <div className="flex flex-1 bg-amber-400"></div>
+    </div>
+  );
+}
+
