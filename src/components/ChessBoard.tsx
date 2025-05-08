@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Chess, Square } from 'chess.js';
 import { useRef, useEffect } from "react";
 import PawnPromotion from './PawnPromotion';
+import EvalBar from './EvalBar';
 
 interface Move {
   index: number; 
@@ -118,7 +119,7 @@ function parseFenAndGetMoves(fenString: string) {
 export default function ChessBoard() {
   const boardColors = createChessboardColors();
   const startingPosition = new Chess();
-
+  const [Evaluation, setEvaluation] = useState(0);
   const [fen, setFen] = useState(startingPosition.fen());
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [highlight, setHighlight] = useState(
@@ -202,11 +203,13 @@ export default function ChessBoard() {
     
         board.appendChild(pieceElement);
       }
+      const randomFloat = Math.random() * 10 - 5;
+      setEvaluation(randomFloat);
     }
   }, [fen]);  
 
   return (
-    <div className='flex flex-row w-full aspect-8/7 bg-black gap-2'>
+    <div className='flex flex-row w-full aspect-8/7'>
       <div className="flex flex-row flex-wrap h-full aspect-square relative" ref={boardRef}>
         {promotion && (
           <PawnPromotion color={promotion.color} handlePromotion={(promoteTo) => {
@@ -241,7 +244,9 @@ export default function ChessBoard() {
           })
         ))}
       </div>
-      <div className="flex flex-1 bg-amber-400"></div>
+      {/* <div className="flex flex-1 bg-amber-400"></div> */}
+      <EvalBar score={Evaluation} />
+
     </div>
   );
 }
