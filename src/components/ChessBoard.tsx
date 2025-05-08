@@ -115,18 +115,6 @@ function parseFenAndGetMoves(fenString: string) {
   }
 }
 
-// function PawnPromotion({handlePromotion }: {handlePromotion: (promoteTo: 'q' | 'r' | 'b' | 'n') => void }) {
-//   return (
-//     <div className="absolute top-0 left-0 bg-white p-4">
-//       <h2>Promote to:</h2>
-//       <button onClick={() => handlePromotion('q')}>Queen</button>
-//       <button onClick={() => handlePromotion('r')}>Rook</button>
-//       <button onClick={() => handlePromotion('b')}>Bishop</button>
-//       <button onClick={() => handlePromotion('n')}>Knight</button>
-//     </div>
-//   );
-// }
-
 export default function ChessBoard() {
   const boardColors = createChessboardColors();
   const startingPosition = new Chess();
