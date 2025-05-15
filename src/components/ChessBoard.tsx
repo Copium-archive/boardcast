@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { Chess, Square } from 'chess.js';
 import { useRef, useEffect } from "react";
+import { AppContext } from '@/App';
+import BestMoveArrow from './BestMoveArrow';
 import PawnPromotion from './PawnPromotion';
 import EvalBar from './EvalBar';
+import useEval from '@/lib/useEval';
 
 interface Move {
   index: number; 
@@ -118,9 +121,8 @@ function parseFenAndGetMoves(fenString: string) {
 
 export default function ChessBoard() {
   const boardColors = createChessboardColors();
-  const startingPosition = new Chess();
-  const [Evaluation, setEvaluation] = useState(0);
-  const [fen, setFen] = useState(startingPosition.fen());
+  const {currentFen, setCurrentFen} = useContext(AppContext);
+  const {evaluation, bestMove} = useEval();
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [highlight, setHighlight] = useState(
     Array.from({ length: 8 }, () => Array(8).fill(0))
@@ -158,11 +160,10 @@ export default function ChessBoard() {
   const handleSquare = (row: number, col:number) => {
     setHighlight(Array.from({ length: 8 }, () => Array(8).fill(0)));
     setSelectedPiece(null);
-    console.log(row, col)
     if(highlight[row][col] == 1) {
       const currentSquare = selectedPiece!.position.square;
       const targetSquare = algebraicNotation(row, col);
-      const newPosition = new Chess(fen);
+      const newPosition = new Chess(currentFen);
       try {
         newPosition.move({ from: currentSquare, to: targetSquare });
       } catch {
@@ -174,15 +175,16 @@ export default function ChessBoard() {
         });
         return
       }
-      setFen(newPosition.fen());
+      setCurrentFen(newPosition.fen());
     }
   }
 
   useEffect(() => {
     const board = boardRef.current;
-    const turn = getTurnFromFen(fen);
-    const boardData = parseFenAndGetMoves(fen);
+    const turn = getTurnFromFen(currentFen);
+    const boardData = parseFenAndGetMoves(currentFen);
     if (board) {
+      setHighlight(Array.from({ length: 8 }, () => Array(8).fill(0)));
       const existingPieces = board.querySelectorAll(".chess-piece");
       existingPieces.forEach(piece => piece.remove());
     
@@ -203,23 +205,31 @@ export default function ChessBoard() {
     
         board.appendChild(pieceElement);
       }
-      const randomFloat = Math.random() * 10 - 5;
-      setEvaluation(randomFloat);
     }
-  }, [fen]);  
+  }, [currentFen]);  
 
   return (
-    <div className='flex flex-row w-full aspect-8/7'>
+    <div className='flex flex-row w-full aspect-8/7 gap-1'>
       <div className="flex flex-row flex-wrap h-full aspect-square relative" ref={boardRef}>
+        {bestMove && boardRef.current && (
+            <BestMoveArrow 
+              bestMove={
+                typeof bestMove === 'string' 
+                  ? { from: bestMove.substring(0, 2) as Square, to: bestMove.substring(2, 4) as Square } 
+                  : bestMove
+              } 
+              boardRef={boardRef} 
+            />
+        )}
         {promotion && (
           <PawnPromotion color={promotion.color} handlePromotion={(promoteTo) => {
-            const newPosition = new Chess(fen);
+            const newPosition = new Chess(currentFen);
             newPosition.move({
               from: promotion.currentSquare,
               to: promotion.targetSquare,
               promotion: promoteTo
             });
-            setFen(newPosition.fen());
+            setCurrentFen(newPosition.fen());
             setPromotion(null);
           }} />
         )}        
@@ -236,7 +246,7 @@ export default function ChessBoard() {
                 style={{ 
                   backgroundColor: color, 
                   boxSizing: 'border-box',
-                  boxShadow: `0px 0px 0px 8px ${borderColor} inset` 
+                  boxShadow: `0px 0px 0px 5px ${borderColor} inset` 
                 }}
                 onClick={() => handleSquare(rowIndex, colIndex)}
               ></div>
@@ -244,9 +254,7 @@ export default function ChessBoard() {
           })
         ))}
       </div>
-      {/* <div className="flex flex-1 bg-amber-400"></div> */}
-      <EvalBar score={Evaluation} />
-
+      <EvalBar score={evaluation} turn={getTurnFromFen(currentFen) ?? "w"} />
     </div>
   );
 }

@@ -33,6 +33,7 @@ const StockfishEvaluator: React.FC = () => {
       const msg = e.data;
       if (typeof msg !== 'string') return;
       
+      console.log('Stockfish message:', msg);
       if (msg.includes('readyok')) setEngineReady(true);
       
       // Handle board display from Stockfish's 'd' command
@@ -82,13 +83,20 @@ const StockfishEvaluator: React.FC = () => {
 
       if (msg.includes('score cp')) {
         const match = msg.match(/score cp (-?\d+)/);
-        console.log('Score:', match);
         if (match) setEvaluation(parseInt(match[1], 10) / 100);
       }
 
       if (msg.includes('score mate')) {
         const match = msg.match(/score mate (-?\d+)/);
         if (match) setEvaluation(`Mate in ${match[1]}`);
+      }
+
+      if (msg.includes('Side')) {
+        console.log('Side to move:', msg);
+        // const match = msg.match(/Side to move: (white|black)/i);
+        // if (match) {
+        //   setEngineTurn(match[1] === 'white' ? 'White' : 'Black');
+        // }
       }
     };
 

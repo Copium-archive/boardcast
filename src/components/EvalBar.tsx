@@ -1,37 +1,59 @@
-import React from 'react';
+function EvalBar({ score, turn }: { score: number | string | null, turn: 'w' | 'b' }) {
+    const evalToBarPercent = (
+      evalScore: number | string | null,
+      scale: number = 4
+    ): number => {
+      if (evalScore === null) return 50;
+  
+      if (typeof evalScore === 'string' && evalScore.includes('M')) {
+        return turn === 'w' ? 100 : 0;
+      }
+  
+      let numericScore = typeof evalScore === 'string' ? parseFloat(evalScore) : evalScore;
+  
+      if (turn === 'b') {
+        numericScore = -numericScore;
+      }
+  
+      const normalized = Math.atan(numericScore / scale) / Math.PI + 0.5;
 
-function EvalBar({ score }: { score: number | string | null }) {
-  const evalToBarPercent = (
-    evalScore: number | string | null,
-    scale: number = 4
-  ): number => {
-    if (evalScore === null) return 50;
+      return normalized * 100;
+    };
 
-    let score: number;
-
-    if (typeof evalScore === 'string' && evalScore.includes('#')) {
-      const mateIn = parseInt(evalScore.replace('#', ''), 10);
-      const sign = evalScore.startsWith('-') ? -1 : 1;
-      score = sign * (100 - Math.abs(mateIn));
-    } else {
-      score = typeof evalScore === 'number' ? evalScore : 0;
+    const formatScore = (score: number | string | null, advantage: 'w' | 'b'): string => {
+      if (score === null) return ''
+      if (typeof score === 'string' && score.includes('M')) {
+        return score;
+      }
+      const numericScore = typeof score === 'string' ? parseFloat(score) : score ?? 0;
+      return (advantage === 'w') ? Math.abs(numericScore).toString() : (-Math.abs(numericScore)).toString();
     }
 
-    const normalized = 1 / (1 + Math.pow(10, -score / scale));
-    return normalized * 100;
-  };
+    const whitePercent = evalToBarPercent(score);
+  
+    // console.log('Score input:', score, 'Turn:', turn, 'White percent:', whitePercent);
+  
+    return (
+      <div className="flex flex-1 h-full relative overflow-hidden">
+        <div 
+          className="bg-zinc-200 absolute bottom-0 left-0 right-0 transition-all duration-300 ease-in-out flex flex-col-reverse"
+          style={{ height: `${whitePercent}%` }}
+          >
+          {(whitePercent >= 50) && <div className="text-center">{formatScore(score, 'w')}</div>}
+        </div>
 
-  const whitePercent = evalToBarPercent(score);
-
-  return (
-    <div className="bg-amber-300 flex flex-1 flex-col-reverse overflow-hidden h-full">
-      <div
-        className="bg-zinc-200 transition-all duration-300 ease-in-out"
-        style={{ height: `${whitePercent}%` }}
-      />
-      <div className="bg-black flex-grow" />
-    </div>
-  );
-}
-
-export default EvalBar;
+        <div 
+          className="bg-black absolute top-0 left-0 right-0 transition-all duration-300 ease-in-out text-center flex flex-col"
+          style={{ height: `${100 - whitePercent}%` }}
+        >
+          {(whitePercent < 50) && <div className="text-white text-center">{formatScore(score, 'b')}</div>}
+        </div>
+  
+        {/* Center line */}
+        <div className="absolute left-0 right-0 border-t border-amber-500" style={{ top: '50%' }} />
+      </div>
+    );
+  }
+  
+  export default EvalBar;
+  
