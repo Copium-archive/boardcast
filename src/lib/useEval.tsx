@@ -11,6 +11,7 @@ function useEval() {
     const pendingFen = useRef<string | null>(null);
     const analyzingFen = useRef<string | null>(null);
     const engineReady = useRef<boolean>(false);
+    const EvalCache = useRef<{ [key: string]: { evaluation: number | string | null; bestMove: string | null } }>({});
 
     useEffect(() => {
         const engine = new Worker('/stockfish-17-single.js', { type: 'classic' });
@@ -32,10 +33,12 @@ function useEval() {
                 const match = msg.match(/bestmove (\w+)/);
                 if (match) {
                     setBestMove(match[1]);
+                    if(analyzingFen.current !== null) {
+                        EvalCache.current[analyzingFen.current].bestMove = match[1];
+                    }
                 }
                 
                 // Mark analysis as complete
-                // setIsAnalyzing(false);
                 analyzingFen.current = null;
                 
                 // Check if we have a pending FEN to analyze
@@ -47,12 +50,24 @@ function useEval() {
 
             if (msg.includes('score cp')) {
                 const match = msg.match(/score cp (-?\d+)/);
-                if (match) setEvaluation(parseInt(match[1], 10) / 100);
+                if (match) {
+                    const score = parseInt(match[1], 10) / 100;
+                    if(analyzingFen.current !== null) {
+                        EvalCache.current[analyzingFen.current].evaluation = score;
+                    }
+                    setEvaluation(score);
+                }
             }
 
             if (msg.includes('score mate')) {
                 const match = msg.match(/score mate (-?\d+)/);
-                if (match) setEvaluation(`M${match[1]}`);
+                console.log("score mate", match);
+                if (match) {
+                    if(analyzingFen.current !== null) {
+                        EvalCache.current[analyzingFen.current].evaluation = `M${match[1]}`;
+                    }
+                    setEvaluation(`M${match[1]}`);
+                }
             }
         };
 
@@ -82,12 +97,19 @@ function useEval() {
 
     // Function to start a new analysis
     const startAnalysis = (fen: string) => {
-        console.log("engine ready (useRef)", engineReady.current);
+        if (fen in EvalCache.current) {
+            if(EvalCache.current[fen].bestMove !== null && EvalCache.current[fen].evaluation !== null) {
+                console.log("hit cache");
+                setEvaluation(EvalCache.current[fen].evaluation);
+                setBestMove(EvalCache.current[fen].bestMove);
+                return;
+            }
+        }
         if (!stockfishRef.current || !engineReady) {
             return;
         }
 
-        // setIsAnalyzing(true);
+        EvalCache.current[fen] = { evaluation: null, bestMove: null };
         analyzingFen.current = fen;
         setEvaluation(null);
         setBestMove(null);

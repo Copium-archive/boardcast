@@ -218,7 +218,6 @@ export default function ChessBoard() {
                   ? { from: bestMove.substring(0, 2) as Square, to: bestMove.substring(2, 4) as Square } 
                   : bestMove
               } 
-              boardRef={boardRef} 
             />
         )}
         {promotion && (

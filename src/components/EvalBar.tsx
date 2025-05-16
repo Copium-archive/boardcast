@@ -6,6 +6,8 @@ function EvalBar({ score, turn }: { score: number | string | null, turn: 'w' | '
       if (evalScore === null) return 50;
   
       if (typeof evalScore === 'string' && evalScore.includes('M')) {
+        if(evalScore === 'M0') return 50;
+        if(evalScore.includes('-')) return turn === 'w' ? 0 : 100;
         return turn === 'w' ? 100 : 0;
       }
   
