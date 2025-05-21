@@ -1,11 +1,12 @@
 import { useContext, useState } from 'react';
 import { Chess, Square } from 'chess.js';
 import { useRef, useEffect } from "react";
-import { AppContext } from '@/App';
 import BestMoveArrow from './BestMoveArrow';
 import PawnPromotion from './PawnPromotion';
 import EvalBar from './EvalBar';
 import useEval from '@/lib/useEval';
+import { BoardContext } from './AnalysisBoard';
+import { AppContext } from '@/App';
 
 interface Move {
   index: number; 
@@ -121,7 +122,8 @@ function parseFenAndGetMoves(fenString: string) {
 
 export default function ChessBoard() {
   const boardColors = createChessboardColors();
-  const {currentFen, setCurrentFen} = useContext(AppContext);
+  const {setPositions, setMoves} = useContext(AppContext);
+  const {currentFen, PgnOperation} = useContext(BoardContext);
   const {evaluation, bestMove} = useEval();
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [highlight, setHighlight] = useState(
@@ -157,6 +159,20 @@ export default function ChessBoard() {
     setSelectedPiece(piece);
   };
 
+  const appendMove = (newPosition: Chess) => {
+    setPositions((prevPositions) => {
+      const newPositions = [...prevPositions];
+      newPositions.push(newPosition.fen());
+      return newPositions;
+    });
+    setMoves((prevMoves) => {
+      const newMoves = [...prevMoves];
+      newMoves.push(newPosition.history({ verbose: true }).slice(-1)[0].san);
+      return newMoves;
+    });
+    PgnOperation.current = 'append';
+  }
+
   const handleSquare = (row: number, col:number) => {
     setHighlight(Array.from({ length: 8 }, () => Array(8).fill(0)));
     setSelectedPiece(null);
@@ -166,6 +182,7 @@ export default function ChessBoard() {
       const newPosition = new Chess(currentFen);
       try {
         newPosition.move({ from: currentSquare, to: targetSquare });
+        appendMove(newPosition);
       } catch {
         setPromotion({
           currentSquare: currentSquare,
@@ -175,7 +192,6 @@ export default function ChessBoard() {
         });
         return
       }
-      setCurrentFen(newPosition.fen());
     }
   }
 
@@ -185,9 +201,9 @@ export default function ChessBoard() {
     const boardData = parseFenAndGetMoves(currentFen);
     if (board) {
       setHighlight(Array.from({ length: 8 }, () => Array(8).fill(0)));
+      setSelectedPiece(null);
       const existingPieces = board.querySelectorAll(".chess-piece");
       existingPieces.forEach(piece => piece.remove());
-    
       for (const piece of boardData) {
         const label = piece.color + piece.piece.toUpperCase();
         const { row, col } = piece.position;
@@ -196,7 +212,7 @@ export default function ChessBoard() {
         pieceElement.classList.add("chess-piece", "absolute", "w-1/8", "h-1/8");
         pieceElement.style.left = `${col * 12.5}%`;
         pieceElement.style.top = `${row * 12.5}%`;
-    
+        
         if (piece.color === turn) {
           pieceElement.onclick = () => handleSelect(piece);
         } else {
@@ -221,16 +237,19 @@ export default function ChessBoard() {
             />
         )}
         {promotion && (
-          <PawnPromotion color={promotion.color} handlePromotion={(promoteTo) => {
-            const newPosition = new Chess(currentFen);
-            newPosition.move({
-              from: promotion.currentSquare,
-              to: promotion.targetSquare,
-              promotion: promoteTo
-            });
-            setCurrentFen(newPosition.fen());
-            setPromotion(null);
-          }} />
+          <PawnPromotion 
+            color={promotion.color} 
+            handlePromotion={(promoteTo) => {
+              const newPosition = new Chess(currentFen);
+              newPosition.move({
+                from: promotion.currentSquare,
+                to: promotion.targetSquare,
+                promotion: promoteTo
+              });
+              appendMove(newPosition);
+              setPromotion(null);
+            }} 
+          />
         )}        
         {boardColors.map((row, rowIndex) => (
           row.map((color, colIndex) => {
@@ -257,4 +276,3 @@ export default function ChessBoard() {
     </div>
   );
 }
-

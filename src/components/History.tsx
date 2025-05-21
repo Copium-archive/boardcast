@@ -4,63 +4,28 @@ import { Chess } from 'chess.js';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, SkipBack, SkipForward } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { BoardContext } from './AnalysisBoard';
 
-interface AnalysisPanelProps {
-  pgn: string;
-}
+const History: React.FC = () => {
+  const { currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions } = useContext(AppContext);
+  const { PgnOperation } = useContext(BoardContext);
+  const [currentTimestamp, setCurrentTimestamp] = useState<string>("00:00:00");
+  const [importPgnDialog, setImportPgnDialog] = useState<boolean>(false);
+  const [importText, setImportText] = useState<string>("");
 
-const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ pgn }) => {
-  const [positions, setPositions] = useState<string[]>([]); // FEN strings
-  const [moves, setMoves] = useState<string[]>([]); // Move history (SAN)
-  const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(0);
-  const { setCurrentFen } = useContext(AppContext);
-
-  useEffect(() => {
-    if (!pgn) return;
-    
-    const chess = new Chess();
-    const tempPositions: string[] = [chess.fen()];
-    const tempMoves: string[] = [];
-    
-    try {
-      chess.loadPgn(pgn);
-    } catch (error) {
-      console.error('Invalid PGN', error);
-      setPositions([]);
-      setMoves([]);
-      return;
-    }
-    
-    const history = chess.history();
-    chess.reset();
-    
-    for (const move of history) {
-      tempMoves.push(move);
-      chess.move(move);
-      tempPositions.push(chess.fen());
-    }
-
-    setMoves(tempMoves);
-    setPositions(tempPositions);
-    setCurrentMoveIndex(0);
-  }, [pgn]);
-
-  useEffect(() => {
-    if (positions.length > 0 && currentMoveIndex < positions.length) {
-      setCurrentFen(positions[currentMoveIndex]);
-    }
-  }, [currentMoveIndex, positions, setCurrentFen]);
-
-  // Add keyboard event listener for up/down arrow keys
+  // Add keyboard event listener for 'w'/'s' keys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
+      if (e.key === 's') {
         // Next position
         if (currentMoveIndex < positions.length - 1) {
           setCurrentMoveIndex(currentMoveIndex + 1);
         }
-      } else if (e.key === 'ArrowUp') {
+      } else if (e.key === 'w') {
         // Previous position
         if (currentMoveIndex > 0) {
           setCurrentMoveIndex(currentMoveIndex - 1);
@@ -69,12 +34,12 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ pgn }) => {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    
+
     // Clean up event listener on component unmount
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [currentMoveIndex, positions.length]);
+  }, [currentMoveIndex, positions.length, setCurrentMoveIndex]);
 
   const handleMoveClick = (moveIdx: number) => {
     setCurrentMoveIndex(moveIdx);
@@ -100,9 +65,79 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ pgn }) => {
     setCurrentMoveIndex(positions.length - 1);
   };
 
+  const handleImportPgn = (pgnText: string, shouldCloseDialog = true) => {
+    // Process the PGN
+    const chess = new Chess();
+    const tempPositions: string[] = [chess.fen()];
+    const tempMoves: string[] = [];
+    
+    try {
+      chess.loadPgn(pgnText);
+    } catch (error) {
+      console.error('Invalid PGN', error);
+      setMoves(tempMoves);
+      setPositions(tempPositions);
+      return;
+    }
+    
+    const history = chess.history();
+    chess.reset();
+    
+    for (const move of history) {
+      tempMoves.push(move);
+      chess.move(move);
+      tempPositions.push(chess.fen());
+    }
+
+    setMoves(tempMoves);
+    setPositions(tempPositions);
+    PgnOperation.current = 'import'
+    
+    // Reset dialog state if needed
+    if (shouldCloseDialog) {
+      setImportText("");
+      setImportPgnDialog(false);
+    }
+  };
+
   return (
-    <Card className="flex flex-col h-full border-0 rounded-none p-0" id="cac">
+    <Card className="flex flex-col h-full border-0 rounded-none p-0">
       <CardContent className="p-0 flex flex-col h-full">
+        {/* Top controls - Timestamp and Import PGN */}
+        <div className="flex items-center justify-between bg-slate-100 py-2 px-2 border-b">
+          <div className="flex items-center space-x-2">
+            <Input 
+              type="text" 
+              value={currentTimestamp}
+              onChange={(e) => setCurrentTimestamp(e.target.value)}
+              className="h-8 w-24 text-xs bg-white"
+              placeholder="00:00:00"
+            />
+          </div>
+          
+          <Dialog open={importPgnDialog} onOpenChange={setImportPgnDialog}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-8" variant="outline">
+                <Plus className="h-4 w-4 mr-1" /> PGN
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import PGN</DialogTitle>
+              </DialogHeader>
+              <Textarea
+                placeholder="Paste PGN here..."
+                value={importText}
+                onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setImportText(e.target.value)}
+                className="min-h-32"
+              />
+              <Button onClick={() => handleImportPgn(importText)} disabled={!importText.trim()}>
+                Import
+              </Button>
+            </DialogContent>
+          </Dialog>
+        </div>
+
         {/* Navigation controls */}
         <div className="flex items-center justify-between bg-slate-100 py-2 px-4 border-b">
           <Button 
@@ -178,4 +213,4 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({ pgn }) => {
   );
 };
 
-export default AnalysisPanel;
+export default History;

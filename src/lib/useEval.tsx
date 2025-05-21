@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { AppContext } from "@/App";
+import { BoardContext } from "@/components/AnalysisBoard";
 import { useContext } from "react";
 
 function useEval() {
-    const { currentFen } = useContext(AppContext);
+    const { currentFen } = useContext(BoardContext);
     const [evaluation, setEvaluation] = useState<number | string | null>(0);
     const [bestMove, setBestMove] = useState<string | null>(null);
     const isMountedRef = useRef(true);
@@ -99,7 +99,6 @@ function useEval() {
     const startAnalysis = (fen: string) => {
         if (fen in EvalCache.current) {
             if(EvalCache.current[fen].bestMove !== null && EvalCache.current[fen].evaluation !== null) {
-                console.log("hit cache");
                 setEvaluation(EvalCache.current[fen].evaluation);
                 setBestMove(EvalCache.current[fen].bestMove);
                 return;

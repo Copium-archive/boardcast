@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 function PawnPromotion({ color, handlePromotion }: { color: 'w' | 'b', handlePromotion: (promoteTo: 'q' | 'r' | 'b' | 'n') => void }) {
+  const [open, setOpen] = useState(true);
   const [hovered, setHovered] = useState<string | null>(null);
   
   // Use the correct symbol set based on color
@@ -11,17 +13,24 @@ function PawnPromotion({ color, handlePromotion }: { color: 'w' | 'b', handlePro
     { type: 'n', name: 'Knight', symbol: color === 'w' ? '♘' : '♞' },
   ];
 
+  const handlePromotionSelect = (pieceType: 'q' | 'r' | 'b' | 'n') => {
+    handlePromotion(pieceType);
+    setOpen(false);
+  };
+
   return (
-    <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white rounded-lg shadow-lg p-4 flex flex-col items-center">
-        <h2 className="text-xl font-bold mb-3 text-gray-800">
-          Promote To
-        </h2>
-        <div className="flex space-x-3">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold text-center text-gray-800">
+            Promote To
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex justify-center space-x-3 p-2">
           {pieces.map((piece) => (
             <button
               key={piece.type}
-              onClick={() => handlePromotion(piece.type as 'q' | 'r' | 'b' | 'n')}
+              onClick={() => handlePromotionSelect(piece.type as 'q' | 'r' | 'b' | 'n')}
               onMouseEnter={() => setHovered(piece.type)}
               onMouseLeave={() => setHovered(null)}
               className={`p-3 rounded-lg transition-all duration-200 flex flex-col items-center ${
@@ -42,8 +51,8 @@ function PawnPromotion({ color, handlePromotion }: { color: 'w' | 'b', handlePro
             </button>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

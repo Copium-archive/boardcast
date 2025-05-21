@@ -5,25 +5,37 @@ import { open } from '@tauri-apps/plugin-dialog';
 import {convertFileSrc} from '@tauri-apps/api/core';
 import AnalysisBoard from "./components/AnalysisBoard";
 import VideoContainer from "./components/VideoContainer";
-import { useState } from "react";
+import {useState } from "react";
 import React from "react";
 import { Chess } from "chess.js";
 
 interface AppContextType {
-  currentFen: string;
-  setCurrentFen: React.Dispatch<React.SetStateAction<string>>;
+  moves: string[];
+  setMoves: React.Dispatch<React.SetStateAction<string[]>>;
+  positions: string[];
+  setPositions: React.Dispatch<React.SetStateAction<string[]>>;
+  currentMoveIndex: number;
+  setCurrentMoveIndex: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
-  currentFen: "",
-  setCurrentFen: () => {},
+  moves: [],
+  setMoves: () => {},
+  positions: [],
+  setPositions: () => {},
+  currentMoveIndex: 0,
+  setCurrentMoveIndex: () => {}
 });
 
 function App() {
   const chess = new Chess();
-  const [currentFen, setCurrentFen] = useState<string>(chess.fen());
+  const [positions, setPositions] = useState<string[]>([chess.fen()]); // FEN strings + timestamps
+  const [moves, setMoves] = useState<string[]>([]); // Move history (SAN)
+  const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(0);
   // const [scriptOutput, setScriptOutput] = useState<string | null>(null);
   const [videoPath, setVideoPath] = useState<string | null>(null);
+
+  // useEffect(() => {console.log(positions); console.log(moves)}, [positions, moves])
 
   // const handleRunScript = async () => {
   //   try {
@@ -55,7 +67,11 @@ function App() {
   return (
     <div className="w-full h-screen flex flex-col bg-muted p-2 gap-0">
       <div className="flex flex-1 gap-2">
-        <AppContext.Provider value={{currentFen, setCurrentFen}}>
+        <AppContext.Provider value={{
+          currentMoveIndex, setCurrentMoveIndex, 
+          moves, setMoves, 
+          positions, setPositions}}
+          >
           <Card className="flex-1 flex flex-col p-2 gap-2">
             <Button onClick={handleLoadVideo}>Load Local Video</Button>
             <VideoContainer videoPath={videoPath} />

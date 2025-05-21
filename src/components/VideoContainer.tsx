@@ -1,14 +1,25 @@
-import { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Timeline from "./TimeLine";
 
 interface VideoContainerProps {
   videoPath: string | null;
 }
 
+interface VideoContextType {
+  isPlaying: boolean;
+  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export const VideoContext = React.createContext<VideoContextType>({
+  isPlaying: false,
+  setIsPlaying: () => {},
+});
+
 const VideoContainer = ({ videoPath }: VideoContainerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     // Reset state when video changes
@@ -37,19 +48,21 @@ const VideoContainer = ({ videoPath }: VideoContainerProps) => {
             Your browser does not support the video tag.
           </video>
         ) : (
-          <div className="text-center text-muted-foreground flex items-center justify-center w-full h-full bg-neutral-500 ">
-            <span className="text-2xl font-bold text-zinc-200">No Video Selected</span>
+          <div className="text-center text-muted-foreground flex items-center justify-center w-full h-full bg-[#f1f5f9] ">
+            <span className="text-2xl font-bold text-[#aeaeae]">No Video Selected</span>
           </div>
         )}
       </div>
       
       {/* Always show the Timeline, but pass isEnabled flag based on video state */}
       <div className="w-full">
-        <Timeline 
-          videoRef={videoRef} 
-          duration={duration} 
-          isEnabled={isVideoLoaded && !!videoPath} 
-        />
+        <VideoContext.Provider value={{ isPlaying, setIsPlaying }}>
+          <Timeline 
+            videoRef={videoRef} 
+            duration={duration} 
+            isEnabled={isVideoLoaded && !!videoPath} 
+          />
+        </VideoContext.Provider>
       </div>
     </div>
   );
