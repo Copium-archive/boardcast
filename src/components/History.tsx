@@ -99,7 +99,7 @@ const History: React.FC = () => {
           e.preventDefault(); // Prevent browser from closing tab
           navigateToFirst();
         } 
-        // last move
+        //last move
         else if (e.key === 'w' && e.altKey) {
           e.preventDefault(); // Prevent browser save dialog
           navigateToLast();
@@ -218,7 +218,6 @@ const History: React.FC = () => {
         Initial Position
       </div>
     );
-
     // Group moves in pairs (white/black)
     for (let i = 0; i < moves.length; i += 2) {
       const moveNumber = Math.floor(i / 2) + 1;
@@ -265,6 +264,7 @@ const History: React.FC = () => {
       );
     }
 
+    moveElements.reverse();
     return moveElements;
   };
 
