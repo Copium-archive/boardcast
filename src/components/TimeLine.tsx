@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Minus, Plus } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Minus, Plus, Bookmark } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +15,12 @@ interface TimelineProps {
   initialSkipTime?: number; // Initial time skip duration in seconds
 }
 
+interface Checkpoint {
+  id: string;
+  timestamp: number;
+  createdAt: Date;
+}
+
 const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }: TimelineProps) => {
   const { isPlaying, setIsPlaying } = useContext(VideoContext);
   const [currentTime, setCurrentTime] = useState(0);
@@ -22,6 +28,56 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [skipTime, setSkipTime] = useState(initialSkipTime);
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+
+  // Create a new checkpoint
+  const createCheckpoint = (timestamp: number) => {
+    if (!isEnabled) return;
+    
+    // Check if a checkpoint already exists at this timestamp (within 0.1 seconds tolerance)
+    const existingCheckpoint = checkpoints.find(cp => Math.abs(cp.timestamp - timestamp) < 0.1);
+    if (existingCheckpoint) return;
+
+    const newCheckpoint: Checkpoint = {
+      id: `checkpoint-${Date.now()}-${Math.random()}`,
+      timestamp,
+      createdAt: new Date()
+    };
+
+    setCheckpoints(prev => [...prev, newCheckpoint].sort((a, b) => a.timestamp - b.timestamp));
+  };
+
+  // Navigate to the closest checkpoint to the left
+  const navigateToLeftCheckpoint = () => {
+    if (!videoRef.current || !isEnabled || checkpoints.length === 0) return;
+
+    videoRef.current.pause();
+    setIsPlaying(false);
+    
+    const currentTimestamp = videoRef.current.currentTime;
+    const leftCheckpoints = checkpoints.filter(cp => cp.timestamp < currentTimestamp - 0.1);
+    
+    if (leftCheckpoints.length > 0) {
+      const closestLeft = leftCheckpoints[leftCheckpoints.length - 1];
+      videoRef.current.currentTime = closestLeft.timestamp;
+    }
+  };
+
+  // Navigate to the closest checkpoint to the right
+  const navigateToRightCheckpoint = () => {
+    if (!videoRef.current || !isEnabled || checkpoints.length === 0) return;
+
+    videoRef.current.pause();
+    setIsPlaying(false);
+    
+    const currentTimestamp = videoRef.current.currentTime;
+    const rightCheckpoints = checkpoints.filter(cp => cp.timestamp > currentTimestamp + 0.1);
+    
+    if (rightCheckpoints.length > 0) {
+      const closestRight = rightCheckpoints[0];
+      videoRef.current.currentTime = closestRight.timestamp;
+    }
+  };
 
   // Toggle mute - FIXED
   const toggleMute = () => {
@@ -129,8 +185,15 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
       
       switch(e.key) {
         case ' ':  // Space bar
-          e.preventDefault();
-          togglePlayPause();
+          {
+            e.preventDefault();
+            const wasPlaying = !videoRef.current.paused;
+            togglePlayPause();
+            // Create checkpoint when pausing (not when playing)
+            if (wasPlaying) {
+              createCheckpoint(videoRef.current.currentTime);
+            }
+          }
           break;
         case 'ArrowLeft':
         case '<':
@@ -155,6 +218,14 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
         case 'm':
           toggleMute();
           break;
+        case 'a':
+        case 'A':
+          navigateToLeftCheckpoint();
+          break;
+        case 'd':
+        case 'D':
+          navigateToRightCheckpoint();
+          break;
       }
     };
 
@@ -162,7 +233,7 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [videoRef, isEnabled]);
+  }, [videoRef, isEnabled, checkpoints]);
 
   // Toggle play/pause - FIXED
   const togglePlayPause = () => {
@@ -185,12 +256,14 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
   // Skip backward by skipTime seconds
   const skipBackward = () => {
     if (!videoRef.current || !isEnabled) return;
+    console.log("Skipping backward", skipTime);
     videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - skipTime);
   };
 
   // Skip forward by skipTime seconds
   const skipForward = () => {
     if (!videoRef.current || !isEnabled) return;
+    console.log("Skipping forward", skipTime);
     videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + skipTime);
   };
 
@@ -231,34 +304,72 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     setSkipTime(newSkipTime);
   };
 
+  // Clear all checkpoints
+  const clearCheckpoints = () => {
+    if (!isEnabled) return;
+    setCheckpoints([]);
+  };
+
   return (
     <TooltipProvider>
       <Card className={`w-full bg-background border-border ${!isEnabled ? 'opacity-70' : ''} rounded-tr-none rounded-tl-none p-0`}>
         <CardContent className="p-4 space-y-2">
-          {/* Timestamp display - Moved to top */}
-          <div className="flex justify-between items-center px-1">
-            <div className="text-xs text-muted-foreground">Current</div>
+            {/* Timestamp display - Centered, minimal */}
+            <div className="flex justify-center items-center px-1 pb-2">
             <div className="text-sm font-medium font-mono">
               {formatTime(isEnabled ? currentTime : 0)} / {formatTime(isEnabled ? duration : 0)}
             </div>
-            <div className="text-xs text-muted-foreground">Total</div>
-          </div>
+            </div>
           
-          {/* Progress slider */}
-          <div className="w-full">
+          {/* Progress slider with checkpoint markers */}
+            <div className="w-full relative">
             <Slider
               value={[currentTime / duration * 100]}
               min={0}
               max={100}
               step={0.01} // Increased precision for finer control
               onValueChange={seek}
-              className={`cursor-pointer ${!isEnabled ? 'pointer-events-none' : ''}`}
+              className={`cursor-pointer ${!isEnabled ? 'pointer-events-none' : ''} no-thumb`}
               disabled={!isEnabled}
             />
-          </div>
+            
+            {/* Checkpoint markers overlay */}
+            {isEnabled && checkpoints.map((checkpoint) => {
+              const position = (checkpoint.timestamp / duration) * 100;
+              return (
+              <Tooltip key={checkpoint.id}>
+                <TooltipTrigger asChild>
+                <div
+                  className="absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
+                  style={{ left: `${position}%` }}
+                  onClick={() => {
+                  if (videoRef.current) {
+                    videoRef.current.currentTime = checkpoint.timestamp;
+                  }
+                  }}
+                >
+                  <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    backgroundColor: '#ef4444', // Tailwind red-500
+                    borderRadius: 2,
+                    border: '2px solid #fff',
+                    boxShadow: '0 0 0 1px #ef4444'
+                  }}
+                  />
+                </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                <p>Checkpoint: {formatTime(checkpoint.timestamp)}</p>
+                </TooltipContent>
+              </Tooltip>
+              );
+            })}
+            </div>
           
           {/* Controls row */}
-          <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center justify-between mt-4">
             <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -343,6 +454,35 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
             </div>
             
             <div className="flex items-center gap-2">
+              {/* Checkpoint controls */}
+              {checkpoints.length > 0 && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={clearCheckpoints}
+                        disabled={!isEnabled}
+                        className="text-xs px-2"
+                      >
+                        Clear
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Clear all checkpoints</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Bookmark size={12} />
+                    {checkpoints.length}
+                  </Badge>
+                  
+                  <div className="border-l h-6 mx-2 border-gray-300"></div>
+                </>
+              )}
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 

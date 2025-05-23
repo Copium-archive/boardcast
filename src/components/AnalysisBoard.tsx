@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Card } from '@/components/ui/card'; 
 import ChessBoard from './ChessBoard'; 
 import { AppContext } from '@/App'; 
-import { useContext, useState, useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import History from './History';
 
 // const samplePGN = `
@@ -25,39 +25,31 @@ import History from './History';
 
 interface BoardContextType {
   currentFen: string;
-  setCurrentFen: React.Dispatch<React.SetStateAction<string>>;
   PgnOperation: React.RefObject<string|null>;
 }
 
 export const BoardContext = React.createContext<BoardContextType>({
   currentFen: '',
-  setCurrentFen: () => {},
   PgnOperation: { current: null }
 });
 
 function AnalysisBoard() {
   const {currentMoveIndex, setCurrentMoveIndex, positions} = useContext(AppContext);
-  const [currentFen, setCurrentFen] = useState(positions[currentMoveIndex]);
   const PgnOperation = useRef<string|null>(null);
+  const currentFen = positions[currentMoveIndex];
 
   useEffect(() => {
-    setCurrentFen(positions[currentMoveIndex]);
-  }, [currentMoveIndex]);
-
-  useEffect(() => {
-    if(PgnOperation.current == 'append') {
+    if(PgnOperation.current == 'append' || PgnOperation.current == 'remove') {
       setCurrentMoveIndex(positions.length - 1);
+      return;
     }
-    else {
-      setCurrentMoveIndex(0);
-    }
+    setCurrentMoveIndex(0);
     PgnOperation.current = null;
-  }, [positions]);
-  
+  }, [positions, setCurrentMoveIndex]);
   
   return (
     <Card className="w-1/4 flex flex-col p-0 gap-1">
-      <BoardContext.Provider value={{ currentFen, setCurrentFen, PgnOperation }}>
+      <BoardContext.Provider value={{ currentFen, PgnOperation }}>
         <ChessBoard />
         <History/>
       </BoardContext.Provider>

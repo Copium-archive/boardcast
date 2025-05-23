@@ -7,6 +7,7 @@ import EvalBar from './EvalBar';
 import useEval from '@/lib/useEval';
 import { BoardContext } from './AnalysisBoard';
 import { AppContext } from '@/App';
+import ConfirmNewLine from './ConfirmNewLine';
 
 interface Move {
   index: number; 
@@ -32,6 +33,13 @@ interface Promotion {
   targetSquare: string;       
   color: 'w' | 'b';         
   promotion: 'q' | 'r' | 'b' | 'n' | null; 
+}
+
+interface NewLine {
+  index: number;
+  currentSquare: string;      
+  targetSquare: string;       
+  promotionPiece?: 'q' | 'r' | 'b' | 'n';
 }
 
 const createChessboardColors = () => {
@@ -122,7 +130,7 @@ function parseFenAndGetMoves(fenString: string) {
 
 export default function ChessBoard() {
   const boardColors = createChessboardColors();
-  const {setPositions, setMoves} = useContext(AppContext);
+  const {currentMoveIndex, setPositions, moves, setMoves} = useContext(AppContext);
   const {currentFen, PgnOperation} = useContext(BoardContext);
   const {evaluation, bestMove} = useEval();
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
@@ -130,6 +138,7 @@ export default function ChessBoard() {
     Array.from({ length: 8 }, () => Array(8).fill(0))
   );
   const [promotion, setPromotion] = useState<Promotion | null>(null);
+  const [newLine, setNewLine] = useState<NewLine | null>(null);
 
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -159,18 +168,24 @@ export default function ChessBoard() {
     setSelectedPiece(piece);
   };
 
-  const appendMove = (newPosition: Chess) => {
+  const appendMove = (newPosition: Chess, prefixLength?: number) => {
+    // Determine how many moves/positions to keep as prefix
+    const keepCount = prefixLength !== undefined ? prefixLength : moves.length;
     setPositions((prevPositions) => {
-      const newPositions = [...prevPositions];
+      const newPositions = prevPositions.slice(0, keepCount + 1);
       newPositions.push(newPosition.fen());
       return newPositions;
     });
     setMoves((prevMoves) => {
-      const newMoves = [...prevMoves];
+      const newMoves = prevMoves.slice(0, keepCount);
       newMoves.push(newPosition.history({ verbose: true }).slice(-1)[0].san);
       return newMoves;
     });
     PgnOperation.current = 'append';
+  }
+
+  const isLast = () => {
+    return currentMoveIndex === moves.length;
   }
 
   const handleSquare = (row: number, col:number) => {
@@ -182,7 +197,16 @@ export default function ChessBoard() {
       const newPosition = new Chess(currentFen);
       try {
         newPosition.move({ from: currentSquare, to: targetSquare });
-        appendMove(newPosition);
+        if (isLast()) {
+          appendMove(newPosition);
+        }
+        else {
+          setNewLine({
+            index: currentMoveIndex,
+            currentSquare: currentSquare,
+            targetSquare: targetSquare
+          })
+        }
       } catch {
         setPromotion({
           currentSquare: currentSquare,
@@ -190,7 +214,7 @@ export default function ChessBoard() {
           color: selectedPiece!.color,
           promotion: null
         });
-        return
+        return;
       }
     }
   }
@@ -212,7 +236,6 @@ export default function ChessBoard() {
         pieceElement.classList.add("chess-piece", "absolute", "w-1/8", "h-1/8");
         pieceElement.style.left = `${col * 12.5}%`;
         pieceElement.style.top = `${row * 12.5}%`;
-        
         if (piece.color === turn) {
           pieceElement.onclick = () => handleSelect(piece);
         } else {
@@ -240,17 +263,60 @@ export default function ChessBoard() {
           <PawnPromotion 
             color={promotion.color} 
             handlePromotion={(promoteTo) => {
+              if (promoteTo === null) {
+                // User cancelled the promotion
+                setPromotion(null);
+                return;
+              }
+              
               const newPosition = new Chess(currentFen);
               newPosition.move({
                 from: promotion.currentSquare,
                 to: promotion.targetSquare,
-                promotion: promoteTo
+                promotion: promoteTo ?? undefined
               });
-              appendMove(newPosition);
+              if(isLast()) {
+                appendMove(newPosition);
+              }
+              else {
+                setNewLine({
+                  index: currentMoveIndex,
+                  currentSquare: promotion.currentSquare,
+                  targetSquare: promotion.targetSquare,
+                  promotionPiece: promoteTo ?? undefined
+                })
+              }
               setPromotion(null);
             }} 
           />
         )}        
+        {newLine && (
+          <ConfirmNewLine 
+            handleConfirm={() => {
+              const newPosition = new Chess(currentFen);
+              const moveOptions: {
+                from: string;
+                to: string;
+                promotion?: 'q' | 'r' | 'b' | 'n';
+              } = {
+                from: newLine.currentSquare,
+                to: newLine.targetSquare
+              };
+              
+              if (newLine.promotionPiece) {
+                moveOptions.promotion = newLine.promotionPiece;
+              }
+              
+              newPosition.move(moveOptions);
+              appendMove(newPosition, newLine.index);
+              setNewLine(null);
+            }}
+            
+            onCancel={() => {
+              setNewLine(null);
+            }}
+          />
+        )}
         {boardColors.map((row, rowIndex) => (
           row.map((color, colIndex) => {
             const squareIndex = rowIndex * 8 + colIndex;

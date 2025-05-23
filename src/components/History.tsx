@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef, useMemo } from 'react';
 import { AppContext } from '@/App';
 import { Chess } from 'chess.js';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,21 +14,95 @@ const History: React.FC = () => {
   const { currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions } = useContext(AppContext);
   const { PgnOperation } = useContext(BoardContext);
   const [currentTimestamp, setCurrentTimestamp] = useState<string>("00:00:00");
-  const [importPgnDialog, setImportPgnDialog] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>("");
+  
+  const pgn = useMemo(() => {
+    if (moves.length === 0) return "";
+    return moves.join(" ");
+  }, [moves]);
 
-  // Add keyboard event listener for 'w'/'s' keys
+  // Update importText when dialog opens if there's existing PGN
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  useEffect(() => {
+    if (isDialogOpen) {
+      setImportText(pgn);
+    }
+  }, [isDialogOpen, pgn]);
+  
+  const isLast = () => {
+    return currentMoveIndex === moves.length;
+  }
+  // Add keyboard event listener for Backspace to remove last move
+  useEffect(() => {
+    const handleBackspace = (e: KeyboardEvent) => {
+      // Only trigger if not focused on input/textarea
+      const target = e.target as HTMLElement;
+      const isInputActive =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA';
+
+      if (!isInputActive && e.key === 'Backspace') {
+        if (!isLast()) {
+          setCurrentMoveIndex(moves.length);
+          return;
+        }
+        if (isLast() && moves.length > 0) {
+          setMoves(moves.slice(0, -1));
+          setPositions(positions.slice(0, -1));
+          PgnOperation.current = 'remove';
+        }
+      }
+    };
+    window.addEventListener('keydown', handleBackspace);
+    return () => window.removeEventListener('keydown', handleBackspace);
+  }, [moves, positions, currentMoveIndex]);
+
+  
+  
+  // Add a ref for the scroll area
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  // Add refs for each move element
+  const moveRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Initialize the moveRefs array when moves change
+  useEffect(() => {
+    // Create an array with length equal to positions.length (including initial position)
+    moveRefs.current = Array(positions.length).fill(null);
+  }, [positions.length]);
+
+  // Add keyboard event listener for 'w'/'s' keys and Ctrl+W/Ctrl+S combinations
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 's') {
-        // Next position
-        if (currentMoveIndex < positions.length - 1) {
-          setCurrentMoveIndex(currentMoveIndex + 1);
-        }
-      } else if (e.key === 'w') {
-        // Previous position
-        if (currentMoveIndex > 0) {
-          setCurrentMoveIndex(currentMoveIndex - 1);
+      // Check if the event target is an input, textarea, or if the import dialog is open
+      const target = e.target as HTMLElement;
+      const isInputActive = 
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA'
+      
+      // Only process keyboard shortcuts if we're not focused on input elements
+      if (!isInputActive) {
+        // Regular 'w' and 's' for previous/next move
+        if (e.key === 'w' && !e.altKey) {
+          // Next position
+          if (currentMoveIndex < positions.length - 1) {
+            setCurrentMoveIndex((currentMoveIndex) => {return currentMoveIndex + 1;});
+          }
+        } else if (e.key === 's' && !e.altKey) {
+          // Previous position
+          if (currentMoveIndex > 0) {
+            setCurrentMoveIndex((currentMoveIndex) => {return currentMoveIndex - 1;});
+          }
+        } 
+        // first move
+        else if (e.key === 's' && e.altKey) {
+          e.preventDefault(); // Prevent browser from closing tab
+          navigateToFirst();
+        } 
+        // last move
+        else if (e.key === 'w' && e.altKey) {
+          e.preventDefault(); // Prevent browser save dialog
+          navigateToLast();
         }
       }
     };
@@ -39,7 +113,19 @@ const History: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [currentMoveIndex, positions.length, setCurrentMoveIndex]);
+  }, [currentMoveIndex, positions, setCurrentMoveIndex]);
+
+  // Scroll to current move when currentMoveIndex changes
+  useEffect(() => {
+    const currentMoveElement = moveRefs.current[currentMoveIndex];
+    if (currentMoveElement) {
+      // Use scrollIntoView to ensure the element is visible
+      currentMoveElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [currentMoveIndex]);
 
   const handleMoveClick = (moveIdx: number) => {
     setCurrentMoveIndex(moveIdx);
@@ -96,8 +182,90 @@ const History: React.FC = () => {
     // Reset dialog state if needed
     if (shouldCloseDialog) {
       setImportText("");
-      setImportPgnDialog(false);
+      setIsDialogOpen(false);
     }
+  }; 
+
+  // Function to render moves in the chess.com/lichess style
+  const renderMoves = () => {
+    // If there are no moves, just show the initial position
+    if (moves.length === 0) {
+      return (
+        <div
+          ref={el => { moveRefs.current[0] = el; }}
+          onClick={() => handleMoveClick(0)}
+          className={`px-4 py-2 text-sm border-b hover:bg-slate-100 cursor-pointer ${
+            currentMoveIndex === 0 ? 'bg-blue-100 font-medium' : ''
+          }`}
+        >
+          Initial Position
+        </div>
+      );
+    }
+
+    const moveElements = [];
+    
+    // Add initial position
+    moveElements.push(
+      <div
+        key="initial"
+        ref={el => { moveRefs.current[0] = el; }}
+        onClick={() => handleMoveClick(0)}
+        className={`px-4 py-2 text-sm border-b hover:bg-slate-100 cursor-pointer ${
+          currentMoveIndex === 0 ? 'bg-blue-100 font-medium' : ''
+        }`}
+      >
+        Initial Position
+      </div>
+    );
+
+    // Group moves in pairs (white/black)
+    for (let i = 0; i < moves.length; i += 2) {
+      const moveNumber = Math.floor(i / 2) + 1;
+      const whiteMove = moves[i];
+      const blackMove = i + 1 < moves.length ? moves[i + 1] : null;
+      
+      moveElements.push(
+        <div 
+          key={`move-${moveNumber}`}
+          className="flex border-b"
+        >
+          {/* Move number - responsive width for triple/quadruple digits */}
+          <div className="min-w-10 px-2 py-2 text-sm text-gray-500 border-r flex-shrink-0 text-right">
+            {moveNumber}.
+          </div>
+          
+          {/* White's move - always takes exactly half the remaining space */}
+          <div
+            ref={el => { moveRefs.current[i + 1] = el; }}
+            onClick={() => handleMoveClick(i + 1)}
+            className={`w-1/2 px-2 py-2 text-sm hover:bg-slate-100 cursor-pointer ${
+              currentMoveIndex === i + 1 ? 'bg-blue-100 font-medium' : ''
+            }`}
+          >
+            {whiteMove}
+          </div>
+          
+          {/* Black's move (if exists) - takes the other half */}
+          {blackMove ? (
+            <div
+              ref={el => { moveRefs.current[i + 2] = el; }}
+              onClick={() => handleMoveClick(i + 2)}
+              className={`w-1/2 px-2 py-2 text-sm hover:bg-slate-100 cursor-pointer ${
+                currentMoveIndex === i + 2 ? 'bg-blue-100 font-medium' : ''
+              }`}
+            >
+              {blackMove}
+            </div>
+          ) : (
+            // Empty placeholder to maintain layout when there's no black move
+            <div className="w-1/2"></div>
+          )}
+        </div>
+      );
+    }
+
+    return moveElements;
   };
 
   return (
@@ -115,25 +283,29 @@ const History: React.FC = () => {
             />
           </div>
           
-          <Dialog open={importPgnDialog} onOpenChange={setImportPgnDialog}>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-8" variant="outline">
                 <Plus className="h-4 w-4 mr-1" /> PGN
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[80vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle>Import PGN</DialogTitle>
               </DialogHeader>
-              <Textarea
-                placeholder="Paste PGN here..."
-                value={importText}
-                onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setImportText(e.target.value)}
-                className="min-h-32"
-              />
-              <Button onClick={() => handleImportPgn(importText)} disabled={!importText.trim()}>
-                Import
-              </Button>
+              <div className="flex-1 overflow-y-auto">
+                <Textarea
+                  placeholder="Paste PGN here..."
+                  value={importText}
+                  onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setImportText(e.target.value)}
+                  className="min-h-32 max-h-[50vh]"
+                />
+              </div>
+              <div>
+                <Button onClick={() => handleImportPgn(importText)} disabled={!importText.trim()} className='w-full'>
+                  Import
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -182,30 +354,9 @@ const History: React.FC = () => {
         </div>
 
         {/* Scrollable move list */}
-        <ScrollArea className="flex flex-grow h-0">
-          <div className="grid grid-cols-2">
-            <div
-              onClick={() => handleMoveClick(0)}
-              className={`col-span-2 px-4 py-2 text-sm border-b hover:bg-slate-100 cursor-pointer ${
-                currentMoveIndex === 0 ? 'bg-blue-100 font-medium' : ''
-              }`}
-            >
-              Initial Position
-            </div>
-
-            {moves.map((move, index) => (
-              <div
-                key={index + 1}
-                onClick={() => handleMoveClick(index + 1)}
-                className={`px-4 py-2 text-sm border-b ${
-                  index % 2 === 0 ? 'border-r' : ''
-                } hover:bg-slate-100 cursor-pointer ${
-                  currentMoveIndex === index + 1 ? 'bg-blue-100 font-medium' : ''
-                }`}
-              >
-                {index + 1}. {move}
-              </div>
-            ))}
+        <ScrollArea className="flex flex-grow h-0" ref={scrollAreaRef}>
+          <div className="flex flex-col">
+            {renderMoves()}
           </div>
         </ScrollArea>
       </CardContent>

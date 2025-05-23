@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-function PawnPromotion({ color, handlePromotion }: { color: 'w' | 'b', handlePromotion: (promoteTo: 'q' | 'r' | 'b' | 'n') => void }) {
+function PawnPromotion({ color, handlePromotion }: { color: 'w' | 'b', handlePromotion: (promoteTo: 'q' | 'r' | 'b' | 'n' | null) => void }) {
   const [open, setOpen] = useState(true);
   const [hovered, setHovered] = useState<string | null>(null);
   
@@ -17,9 +17,18 @@ function PawnPromotion({ color, handlePromotion }: { color: 'w' | 'b', handlePro
     handlePromotion(pieceType);
     setOpen(false);
   };
+  
+  // Handle dialog close without selection
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      // If dialog is closing and no piece was selected
+      handlePromotion(null);
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center text-gray-800">

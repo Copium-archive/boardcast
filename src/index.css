@@ -110,6 +110,15 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.no-thumb [data-slot="slider-thumb"] {
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
