@@ -80,7 +80,7 @@ function getTurnFromFen(fenString: string): 'w' | 'b' | null {
   }
 }
 
-function parseFenAndGetMoves(fenString: string) {
+function inferFen(fenString: string) {
   try {
     const chess = new Chess(fenString);
     const boardPieces = [];
@@ -130,7 +130,7 @@ function parseFenAndGetMoves(fenString: string) {
 
 export default function ChessBoard() {
   const boardColors = createChessboardColors();
-  const {currentMoveIndex, setPositions, moves, setMoves} = useContext(AppContext);
+  const {setTimestamps, currentMoveIndex, setPositions, moves, setMoves} = useContext(AppContext);
   const {currentFen, PgnOperation} = useContext(BoardContext);
   const {evaluation, bestMove} = useEval();
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
@@ -181,6 +181,11 @@ export default function ChessBoard() {
       newMoves.push(newPosition.history({ verbose: true }).slice(-1)[0].san);
       return newMoves;
     });
+    setTimestamps((prevTimestamps) => {
+      const newTimestamps = prevTimestamps.slice(0, keepCount + 1);
+      newTimestamps.push(null);
+      return newTimestamps;
+    });
     PgnOperation.current = 'append';
   }
 
@@ -222,7 +227,7 @@ export default function ChessBoard() {
   useEffect(() => {
     const board = boardRef.current;
     const turn = getTurnFromFen(currentFen);
-    const boardData = parseFenAndGetMoves(currentFen);
+    const boardData = inferFen(currentFen);
     if (board) {
       setHighlight(Array.from({ length: 8 }, () => Array(8).fill(0)));
       setSelectedPiece(null);
@@ -248,7 +253,7 @@ export default function ChessBoard() {
   }, [currentFen]);  
 
   return (
-    <div className='flex flex-row w-full aspect-8/7 gap-1'>
+    <div className='flex flex-row w-full aspect-9/8 gap-1'>
       <div className="flex flex-row flex-wrap h-full aspect-square relative" ref={boardRef}>
         {bestMove && boardRef.current && (
             <BestMoveArrow 

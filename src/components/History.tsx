@@ -11,9 +11,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { BoardContext } from './AnalysisBoard';
 
 const History: React.FC = () => {
-  const { currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions } = useContext(AppContext);
+  const {timestamps, setTimestamps, currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions } = useContext(AppContext);
   const { PgnOperation } = useContext(BoardContext);
-  const [currentTimestamp, setCurrentTimestamp] = useState<string>("00:00:00");
+  // Derive currentTimestamp from timestamps[currentMoveIndex]
+  const currentTimestamp = useMemo(() => {
+    const ts = timestamps[currentMoveIndex];
+    if (ts == null) return "";
+    // Format seconds to HH:MM:SS.d
+    const sec = Math.floor(ts % 60);
+    const min = Math.floor((ts / 60) % 60);
+    const hr = Math.floor(ts / 3600);
+    const decimal = Math.floor((ts - Math.floor(ts)) * 10); // tenths
+    return [
+      hr.toString().padStart(2, "0"),
+      min.toString().padStart(2, "0"),
+      `${sec.toString().padStart(2, "0")}.${decimal}`
+    ].join(":");
+  }, [timestamps, currentMoveIndex]);
   const [importText, setImportText] = useState<string>("");
   
   const pgn = useMemo(() => {
@@ -50,6 +64,7 @@ const History: React.FC = () => {
         if (isLast() && moves.length > 0) {
           setMoves(moves.slice(0, -1));
           setPositions(positions.slice(0, -1));
+          setTimestamps(timestamps.slice(0, -1));
           PgnOperation.current = 'remove';
         }
       }
@@ -174,9 +189,10 @@ const History: React.FC = () => {
       chess.move(move);
       tempPositions.push(chess.fen());
     }
-
+    
     setMoves(tempMoves);
     setPositions(tempPositions);
+    setTimestamps(Array(tempPositions.length).fill(null));    
     PgnOperation.current = 'import'
     
     // Reset dialog state if needed
@@ -277,9 +293,9 @@ const History: React.FC = () => {
             <Input 
               type="text" 
               value={currentTimestamp}
-              onChange={(e) => setCurrentTimestamp(e.target.value)}
               className="h-8 w-24 text-xs bg-white"
               placeholder="00:00:00"
+              readOnly
             />
           </div>
           

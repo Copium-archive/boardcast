@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Minus, Plus, Bookmark } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Bookmark, Settings } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -7,45 +7,47 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useContext } from "react";
 import { VideoContext } from "./VideoContainer";
+import SettingsDialog from "./SettingsDialog";
 
 interface TimelineProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   duration: number;
-  isEnabled?: boolean; // New prop to control disabled state
-  initialSkipTime?: number; // Initial time skip duration in seconds
+  isEnabled?: boolean;
+  initialSkipTime?: number;
 }
 
-interface Checkpoint {
-  id: string;
-  timestamp: number;
-  createdAt: Date;
-}
-
-const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }: TimelineProps) => {
-  const { isPlaying, setIsPlaying } = useContext(VideoContext);
-  const [currentTime, setCurrentTime] = useState(0);
+const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: TimelineProps) => {
+  const { 
+    currentTime, setCurrentTime, 
+    isPlaying, setIsPlaying,
+    checkpoints, setCheckpoints,
+    createCheckpoint
+  } = useContext(VideoContext);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [skipTime, setSkipTime] = useState(initialSkipTime);
-  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
-
-  // Create a new checkpoint
-  const createCheckpoint = (timestamp: number) => {
-    if (!isEnabled) return;
-    
-    // Check if a checkpoint already exists at this timestamp (within 0.1 seconds tolerance)
-    const existingCheckpoint = checkpoints.find(cp => Math.abs(cp.timestamp - timestamp) < 0.1);
-    if (existingCheckpoint) return;
-
-    const newCheckpoint: Checkpoint = {
-      id: `checkpoint-${Date.now()}-${Math.random()}`,
-      timestamp,
-      createdAt: new Date()
-    };
-
-    setCheckpoints(prev => [...prev, newCheckpoint].sort((a, b) => a.timestamp - b.timestamp));
+  
+  // Calculate automatic skip time based on video duration (1% of total duration)
+  const calculateAutoSkipTime = () => {
+    const autoSkip = duration * 0.01; // 1% of duration
+    return Math.max(1, Math.min(60, Math.round(autoSkip * 10) / 10)); // Constrain to [1-60]s and round to 1 decimal
   };
+  
+  const [skipTime, setSkipTime] = useState(() => {
+    if (initialSkipTime !== undefined) {
+      return initialSkipTime;
+    }
+    return duration > 0 ? calculateAutoSkipTime() : 5;
+  });
+  
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Update skip time when duration changes
+  useEffect(() => {
+    if (duration > 0 && initialSkipTime === undefined) {
+      setSkipTime(calculateAutoSkipTime());
+    }
+  }, [duration, initialSkipTime]);
 
   // Navigate to the closest checkpoint to the left
   const navigateToLeftCheckpoint = () => {
@@ -55,11 +57,11 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     setIsPlaying(false);
     
     const currentTimestamp = videoRef.current.currentTime;
-    const leftCheckpoints = checkpoints.filter(cp => cp.timestamp < currentTimestamp - 0.1);
+    const leftCheckpoints = checkpoints.filter(cp => cp < currentTimestamp - 0.1);
     
     if (leftCheckpoints.length > 0) {
       const closestLeft = leftCheckpoints[leftCheckpoints.length - 1];
-      videoRef.current.currentTime = closestLeft.timestamp;
+      videoRef.current.currentTime = closestLeft;
     }
   };
 
@@ -71,15 +73,15 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     setIsPlaying(false);
     
     const currentTimestamp = videoRef.current.currentTime;
-    const rightCheckpoints = checkpoints.filter(cp => cp.timestamp > currentTimestamp + 0.1);
+    const rightCheckpoints = checkpoints.filter(cp => cp > currentTimestamp + 0.1);
     
     if (rightCheckpoints.length > 0) {
       const closestRight = rightCheckpoints[0];
-      videoRef.current.currentTime = closestRight.timestamp;
+      videoRef.current.currentTime = closestRight;
     }
   };
 
-  // Toggle mute - FIXED
+  // Toggle mute
   const toggleMute = () => {
     if (!videoRef.current || !isEnabled) return;
     
@@ -88,12 +90,13 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     setIsMuted(newMutedState);
   };
 
-  // Format time to MM:SS:MS format (with milliseconds)
+  // Format time to HH:MM:SS.S format (with 1 decimal place)
   const formatTime = (time: number): string => {
-    const minutes = Math.floor(time / 60);
+    const hours = Math.floor(time / 3600);
+    const minutes = Math.floor((time % 3600) / 60);
     const seconds = Math.floor(time % 60);
-    const milliseconds = Math.floor((time % 1) * 1000);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}.${milliseconds.toString().padStart(3, '0')}`;
+    const decimals = Math.floor((time % 1) * 10);
+    return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}.${decimals}`;
   };
 
   // Initialize state from video element
@@ -103,7 +106,8 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     
     // Set initial values from video element
     setIsPlaying(!video.paused);
-    setCurrentTime(video.currentTime);
+    const roundedTime = Math.round(video.currentTime * 10) / 10;
+    setCurrentTime(roundedTime);
     setPlaybackRate(video.playbackRate);
     setVolume(video.volume);
     setIsMuted(video.muted);
@@ -115,7 +119,8 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     if (!video || !isEnabled) return;
 
     const updateTime = () => {
-      setCurrentTime(video.currentTime);
+      const roundedTime = Math.round(video.currentTime * 10) / 10;
+      setCurrentTime(roundedTime);
     };
 
     // Use requestAnimationFrame for smoother millisecond updates
@@ -187,14 +192,18 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
         case ' ':  // Space bar
           {
             e.preventDefault();
-            const wasPlaying = !videoRef.current.paused;
             togglePlayPause();
             // Create checkpoint when pausing (not when playing)
-            if (wasPlaying) {
-              createCheckpoint(videoRef.current.currentTime);
-            }
           }
           break;
+        case 'x':
+        case 'X': {
+            const wasPlaying = !videoRef.current.paused;
+            if (wasPlaying === false) {
+                createCheckpoint(videoRef.current.currentTime);
+            }
+            break;
+        }
         case 'ArrowLeft':
         case '<':
           skipBackward();
@@ -210,10 +219,10 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
           changePlaybackRate(-0.25);
           break;
         case ',':
-          changeSkipTime(-0.5);
+          changeSkipTime(-0.1);
           break;
         case '.':
-          changeSkipTime(0.5);
+          changeSkipTime(0.1);
           break;
         case 'm':
           toggleMute();
@@ -233,9 +242,9 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [videoRef, isEnabled, checkpoints]);
+  }, [videoRef, isEnabled, checkpoints, skipTime]);
 
-  // Toggle play/pause - FIXED
+  // Toggle play/pause
   const togglePlayPause = () => {
     if (!videoRef.current || !isEnabled) return;
     
@@ -283,6 +292,14 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     videoRef.current.playbackRate = newRate;
   };
 
+  // Set playback speed directly
+  const setPlaybackRateDirectly = (rate: number) => {
+    if (!videoRef.current || !isEnabled) return;
+    
+    setPlaybackRate(rate);
+    videoRef.current.playbackRate = rate;
+  };
+
   // Change volume
   const changeVolume = (value: number[]) => {
     if (!videoRef.current || !isEnabled) return;
@@ -296,12 +313,20 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
     }
   };
 
-  // Change skip time
+  // Change skip time with 0.1s precision
   const changeSkipTime = (change: number) => {
     if (!isEnabled) return;
-    // Minimum 0.5 second, maximum 60 seconds
-    const newSkipTime = Math.max(0.5, Math.min(60, skipTime + change));
+    // Round to 1 decimal place and constrain to [1-60]s
+    const newSkipTime = Math.max(1, Math.min(60, Math.round((skipTime + change) * 10) / 10));
     setSkipTime(newSkipTime);
+  };
+
+  // Set skip time directly with validation
+  const setSkipTimeDirectly = (time: number) => {
+    if (!isEnabled) return;
+    // Round to 1 decimal place and constrain to [1-60]s
+    const validatedTime = Math.max(1, Math.min(60, Math.round(time * 10) / 10));
+    setSkipTime(validatedTime);
   };
 
   // Clear all checkpoints
@@ -335,16 +360,18 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
             
             {/* Checkpoint markers overlay */}
             {isEnabled && checkpoints.map((checkpoint) => {
-              const position = (checkpoint.timestamp / duration) * 100;
+              const position = (checkpoint / duration) * 100;
               return (
-              <Tooltip key={checkpoint.id}>
+              <Tooltip key={checkpoint}>
                 <TooltipTrigger asChild>
                 <div
                   className="absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
                   style={{ left: `${position}%` }}
                   onClick={() => {
                   if (videoRef.current) {
-                    videoRef.current.currentTime = checkpoint.timestamp;
+                    videoRef.current.currentTime = checkpoint;
+                    videoRef.current.pause();
+                    setIsPlaying(false);
                   }
                   }}
                 >
@@ -361,7 +388,7 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
                 </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                <p>Checkpoint: {formatTime(checkpoint.timestamp)}</p>
+                <p>Checkpoint: {formatTime(checkpoint)}</p>
                 </TooltipContent>
               </Tooltip>
               );
@@ -487,79 +514,30 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime = 5 }:
                 <TooltipTrigger asChild>
                   <Button 
                     variant="outline" 
-                    size="icon" 
-                    onClick={() => changeSkipTime(-0.5)}
-                    aria-label="Decrease skip time"
+                    size="icon"
                     disabled={!isEnabled}
+                    className="relative"
+                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                   >
-                    <Minus size={16} />
+                    <Settings size={16}/>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Decrease skip time</p>
+                  <p>Settings</p>
                 </TooltipContent>
               </Tooltip>
-              
-              <Badge variant="outline">
-                {skipTime}s
-              </Badge>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => changeSkipTime(0.5)}
-                    aria-label="Increase skip time"
-                    disabled={!isEnabled}
-                  >
-                    <Plus size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Increase skip time</p>
-                </TooltipContent>
-              </Tooltip>
-
-              <div className="border-l h-6 mx-2 border-gray-300"></div>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => changePlaybackRate(-0.25)}
-                    aria-label="Decrease playback speed"
-                    disabled={!isEnabled}
-                  >
-                    <Minus size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Decrease speed (-)</p>
-                </TooltipContent>
-              </Tooltip>
-              
-              <Badge variant="secondary">
-                {playbackRate}x
-              </Badge>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => changePlaybackRate(0.25)}
-                    aria-label="Increase playback speed"
-                    disabled={!isEnabled}
-                  >
-                    <Plus size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Increase speed (+)</p>
-                </TooltipContent>
-              </Tooltip>
+                            
+              <SettingsDialog
+                isOpen={isSettingsOpen}
+                onOpenChange={setIsSettingsOpen}
+                skipTime={skipTime}
+                playbackRate={playbackRate}
+                onSkipTimeChange={changeSkipTime}
+                onPlaybackRateChange={changePlaybackRate}
+                onSkipTimeSet={setSkipTimeDirectly}
+                onPlaybackRateSet={setPlaybackRateDirectly}
+                isEnabled={isEnabled}
+              />
             </div>
           </div>
         </CardContent>

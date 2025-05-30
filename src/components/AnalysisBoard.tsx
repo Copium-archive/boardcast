@@ -34,11 +34,12 @@ export const BoardContext = React.createContext<BoardContextType>({
 });
 
 function AnalysisBoard() {
-  const {currentMoveIndex, setCurrentMoveIndex, positions} = useContext(AppContext);
+  const {timestamps, currentMoveIndex, setCurrentMoveIndex, positions} = useContext(AppContext);
   const PgnOperation = useRef<string|null>(null);
   const currentFen = positions[currentMoveIndex];
 
   useEffect(() => {
+    console.log(timestamps);
     if(PgnOperation.current == 'append' || PgnOperation.current == 'remove') {
       setCurrentMoveIndex(positions.length - 1);
       return;

@@ -23,7 +23,7 @@ function EvalBar({ score, turn }: { score: number | string | null, turn: 'w' | '
     };
 
     const formatScore = (score: number | string | null, advantage: 'w' | 'b'): string => {
-      if (score === null) return ''
+      if (score === null) return '???'
       if (typeof score === 'string' && score.includes('M')) {
         return score;
       }
@@ -33,7 +33,6 @@ function EvalBar({ score, turn }: { score: number | string | null, turn: 'w' | '
 
     const whitePercent = evalToBarPercent(score);
   
-    // console.log('Score input:', score, 'Turn:', turn, 'White percent:', whitePercent);
   
     return (
       <div className="flex flex-1 h-full relative overflow-hidden">
@@ -41,14 +40,14 @@ function EvalBar({ score, turn }: { score: number | string | null, turn: 'w' | '
           className="bg-zinc-200 absolute bottom-0 left-0 right-0 transition-all duration-300 ease-in-out flex flex-col-reverse"
           style={{ height: `${whitePercent}%` }}
           >
-          {(whitePercent >= 50) && <div className="text-center">{formatScore(score, 'w')}</div>}
+          {(whitePercent >= 50) && <span className="text-center text-[1vw]">{formatScore(score, 'w')}</span>}
         </div>
 
         <div 
           className="bg-black absolute top-0 left-0 right-0 transition-all duration-300 ease-in-out text-center flex flex-col"
           style={{ height: `${100 - whitePercent}%` }}
         >
-          {(whitePercent < 50) && <div className="text-white text-center">{formatScore(score, 'b')}</div>}
+          {(whitePercent < 50) && <span className="text-white text-center text-[1vw]">{formatScore(score, 'b')}</span>}
         </div>
   
         {/* Center line */}
