@@ -1,6 +1,8 @@
 import React from 'react';
 import {Composition} from 'remotion';
 import {MyComponent} from './MyComponent';
+import './style.css';
+
  
 export const RemotionRoot: React.FC = () => {
   return (

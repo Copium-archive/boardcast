@@ -1,22 +1,10 @@
 import {AbsoluteFill} from 'remotion';
 
-const Title: React.FC<{title: string}> = ({title}) => {
+export const MyComponent = () => {
   return (
-    <div style={{
-      textAlign: 'center',
-      fontSize: '7em',
-      color: 'white', // Ensure text is visible
-      lineHeight: '720px', // Vertically center for 720p
-    }}>
-      {title}
-    </div>
+<AbsoluteFill className="bg-black !important flex justify-center items-center">
+  <h1 className="text-white !important text-6xl">Hello Tailwind!</h1>
+</AbsoluteFill>
   );
 };
 
-export const MyComponent = () => {
-  return (
-    <AbsoluteFill style={{backgroundColor: 'black'}}> {/* Set background */}
-      <Title title="Hello World" />
-    </AbsoluteFill>
-  );
-};
