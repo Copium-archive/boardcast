@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video Duration Display</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    #duration {
+      font-size: 1.5em;
+      margin-top: 10px;
+      color: #333;
+    }
+    .controls {
+      margin-top: 20px;
+    }
+    button {
+      font-size: 1em;
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Video Duration (milliseconds)</h1>
+
+  <video id="video" width="480" controls>
+    <source src="out.mp4" type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+
+  <div id="duration">Loading duration...</div>
+
+  <div class="controls">
+    <button id="prevBtn">Previous Timestamp</button>
+    <button id="nextBtn">Next Timestamp</button>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const durationDiv = document.getElementById('duration');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    // Hardcoded important timestamps (in seconds)
+    const timestamps = [
+      0.000, 0.040, 0.080, 0.120, 0.160, 0.200, 0.240, 0.280, 0.320, 0.360,
+      0.400, 0.440, 0.480, 0.520, 0.560, 0.600, 0.640, 0.680, 0.720, 0.760,
+      0.780, 0.800, 0.840, 0.880, 0.920, 0.960, 1.000 
+    ];
+
+    let currentIndex = 0;
+
+    video.addEventListener('loadedmetadata', () => {
+      const durationSeconds = video.duration;
+      const durationMs = durationSeconds * 1000;
+      durationDiv.textContent = `Duration: ${durationSeconds.toFixed(3)} seconds (${durationMs.toFixed(0)} ms)`;
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if (currentIndex < timestamps.length - 1) {
+        currentIndex++;
+        video.currentTime = timestamps[currentIndex];
+      }
+    });
+
+    prevBtn.addEventListener('click', () => {
+      if (currentIndex > 0) {
+        currentIndex--;
+        video.currentTime = timestamps[currentIndex];
+      }
+    });
+  </script>
+
+</body>
+</html>
+  

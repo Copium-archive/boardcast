@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { useContext } from "react";
-import { AppContext } from "@/App";
+import { useRef, useState, useEffect } from 'react';
 
-function useEval({ currentFen }: { currentFen: string}) {
-    const [evaluation, setEvaluation] = useState<number | string | null>(0);
-    const [bestMove, setBestMove] = useState<string | null>(null);
+interface UseBatchEvalProps {
+    fenQueue: string[];
+    setFenQueue: React.Dispatch<React.SetStateAction<string[]>>;
+    EvalCache: React.RefObject<{ [key: string]: { evaluation: number | string | null; bestMove: string | null } }>;
+}
+export function useBatchEval({fenQueue, setFenQueue, EvalCache}: UseBatchEvalProps) {
+    const evaluation = useRef<number | string | null>(null)
+    const bestMove = useRef<string | null>(null);
+    const [remaining, setRemaining] = useState(0);
+
     const isMountedRef = useRef(true);
     const stockfishRef = useRef<Worker | null>(null);
-    const pendingFen = useRef<string | null>(null);
-    const analyzingFen = useRef<string | null>(null);
     const engineReady = useRef<boolean>(false);
-    const { EvalCache } = useContext(AppContext);
+    const analyzingFen = useRef<string | null>(null);
 
     useEffect(() => {
         const engine = new Worker('/stockfish-17-single.js', { type: 'classic' });
@@ -31,19 +34,14 @@ function useEval({ currentFen }: { currentFen: string}) {
             if (msg.includes('bestmove')) {
                 const match = msg.match(/bestmove (\w+)/);
                 if (match) {
-                    setBestMove(match[1]);
+                    bestMove.current = match[1];
                     if(analyzingFen.current !== null) {
-                        EvalCache.current[analyzingFen.current].bestMove = match[1];
+                        EvalCache.current[analyzingFen.current] = { 
+                            evaluation: evaluation.current, 
+                            bestMove: bestMove.current 
+                        };
+                        setFenQueue((prevFenQueue: string[]) => prevFenQueue.slice(1))
                     }
-                }
-                
-                // Mark analysis as complete
-                analyzingFen.current = null;
-                
-                // Check if we have a pending FEN to analyze
-                if (pendingFen.current !== null) {
-                    startAnalysis(pendingFen.current);
-                    pendingFen.current = null;
                 }
             }
 
@@ -51,10 +49,7 @@ function useEval({ currentFen }: { currentFen: string}) {
                 const match = msg.match(/score cp (-?\d+)/);
                 if (match) {
                     const score = parseInt(match[1], 10) / 100;
-                    if(analyzingFen.current !== null) {
-                        EvalCache.current[analyzingFen.current].evaluation = score;
-                    }
-                    setEvaluation(score);
+                    evaluation.current = score;
                 }
             }
 
@@ -62,10 +57,7 @@ function useEval({ currentFen }: { currentFen: string}) {
                 const match = msg.match(/score mate (-?\d+)/);
                 console.log("score mate", match);
                 if (match) {
-                    if(analyzingFen.current !== null) {
-                        EvalCache.current[analyzingFen.current].evaluation = `M${match[1]}`;
-                    }
-                    setEvaluation(`M${match[1]}`);
+                    evaluation.current = `M${match[1]}`;
                 }
             }
         };
@@ -93,51 +85,30 @@ function useEval({ currentFen }: { currentFen: string}) {
             }
         };
     }, []);
-
-    // Function to start a new analysis
-    const startAnalysis = (fen: string) => {
+    
+    useEffect(() => {
+        setRemaining(fenQueue.length);
+        if (fenQueue.length === 0) {
+            return;
+        }
+        const fen = fenQueue[0];
+    
         if (fen in EvalCache.current) {
-            if(EvalCache.current[fen].bestMove !== null && EvalCache.current[fen].evaluation !== null) {
-                setEvaluation(EvalCache.current[fen].evaluation);
-                setBestMove(EvalCache.current[fen].bestMove);
-                return;
-            }
+            setFenQueue((prevFenQueue: string[]) => prevFenQueue.slice(1))
+            return;
         }
         if (!stockfishRef.current || !engineReady) {
             return;
         }
-
-        EvalCache.current[fen] = { evaluation: null, bestMove: null };
+    
         analyzingFen.current = fen;
-        setEvaluation(null);
-        setBestMove(null);
         
         const engine = stockfishRef.current;
         engine.postMessage('ucinewgame');
         engine.postMessage(`position fen ${fen}`);
         engine.postMessage('go depth 20'); // Reduced depth for stability
-    };
 
-    // Effect to handle FEN changes
-    useEffect(() => {
-        if (!engineReady || !stockfishRef.current) {
-            return;
-        }
+    }, [fenQueue, engineReady]);
 
-        // If engine is currently analyzing, store this FEN to process later
-        if (analyzingFen.current !== null) {
-            pendingFen.current = currentFen;
-            return;
-        }
-        
-        // Otherwise start analysis immediately
-        startAnalysis(currentFen);
-    }, [currentFen, engineReady]);
-
-    return {
-        evaluation, 
-        bestMove, 
-    };
+    return {remaining}
 }
-
-export default useEval;

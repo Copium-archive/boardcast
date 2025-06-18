@@ -30,36 +30,33 @@ function PawnPromotion({ color, handlePromotion }: { color: 'w' | 'b', handlePro
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-center text-gray-800">
-            Promote To
-          </DialogTitle>
-        </DialogHeader>
-        <div className="flex justify-center space-x-3 p-2">
-          {pieces.map((piece) => (
-            <button
-              key={piece.type}
-              onClick={() => handlePromotionSelect(piece.type as 'q' | 'r' | 'b' | 'n')}
-              onMouseEnter={() => setHovered(piece.type)}
-              onMouseLeave={() => setHovered(null)}
-              className={`p-3 rounded-lg transition-all duration-200 flex flex-col items-center ${
-                hovered === piece.type 
-                  ? 'bg-amber-100 shadow-md transform scale-105' 
-                  : 'bg-gray-50 hover:bg-amber-50'
-              }`}
-            >
-              <div className={`text-5xl mb-1 ${
-                hovered === piece.type ? 'text-amber-600' : 
-                color === 'b' ? 'text-gray-900' : 'text-gray-800'
-              }`}>
-                {piece.symbol}
-              </div>
-              <span className={`text-sm font-medium ${hovered === piece.type ? 'text-amber-600' : 'text-gray-700'}`}>
-                {piece.name}
-              </span>
-            </button>
-          ))}
-        </div>
+      <DialogHeader>
+        <DialogTitle className="text-xl font-bold text-center text-gray-800">
+        Promote To
+        </DialogTitle>
+      </DialogHeader>
+      <div className="flex justify-center space-x-3 p-2">
+        {pieces.map((piece) => (
+        <button
+          key={piece.type}
+          onClick={() => handlePromotionSelect(piece.type as 'q' | 'r' | 'b' | 'n')}
+          onMouseEnter={() => setHovered(piece.type)}
+          onMouseLeave={() => setHovered(null)}
+          className={`p-3 rounded-lg transition-all duration-200 flex flex-col items-center ${
+          hovered === piece.type 
+            ? 'bg-blue-100 shadow-md transform scale-105' 
+            : 'bg-gray-100'
+          }`}
+        >
+          <div className={`text-5xl mb-1`}>
+          {piece.symbol}
+          </div>
+          <span className={`text-sm font-medium text-gray-800`}>
+          {piece.name}
+          </span>
+        </button>
+        ))}
+      </div>
       </DialogContent>
     </Dialog>
   );

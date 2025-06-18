@@ -119,6 +119,11 @@
   pointer-events: none !important;
 }
 
+.thick-slider [data-slot="slider-track"][data-orientation="horizontal"] {
+  height: 10px !important; /* or your desired thickness */
+  min-height: 10px !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

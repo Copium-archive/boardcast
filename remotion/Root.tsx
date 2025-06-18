@@ -1,19 +1,22 @@
 import React from 'react';
 import {Composition} from 'remotion';
-import {MyComponent} from './MyComponent';
+import {ChessComponent} from './ChessComponent';
 import './style.css';
-
+import data from './export.json'
  
 export const RemotionRoot: React.FC = () => {
+  const framePerMove = 5;
+  const timePerMove = 0.2;
+
   return (
     <>
       <Composition
-        id="Empty"
-        component={MyComponent}
-        durationInFrames={90}
-        fps={30}
-        width={1280}
-        height={720}
+      id="Chess"
+      component={ChessComponent}
+      durationInFrames={data.positions.length * framePerMove}
+      fps={Math.round(framePerMove / timePerMove)}
+      width={Math.round(data.boardSize * 9/8) || 1280} // Ensure integer width
+      height={Math.round(data.boardSize) || 720} // Ensure integer height
       />
     </>
   );

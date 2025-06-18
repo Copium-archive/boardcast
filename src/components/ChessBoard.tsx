@@ -132,7 +132,7 @@ export default function ChessBoard() {
   const boardColors = createChessboardColors();
   const {setTimestamps, currentMoveIndex, setPositions, moves, setMoves} = useContext(AppContext);
   const {currentFen, PgnOperation} = useContext(BoardContext);
-  const {evaluation, bestMove} = useEval();
+  const {evaluation, bestMove} = useEval({ currentFen});  
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [highlight, setHighlight] = useState(
     Array.from({ length: 8 }, () => Array(8).fill(0))
