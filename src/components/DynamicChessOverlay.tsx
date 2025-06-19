@@ -1,4 +1,4 @@
-import React, { useContext, useState, useRef, useCallback } from 'react';
+import { useEffect, useContext, useState, useRef, useCallback } from 'react';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Slider } from '@/components/ui/slider';
 import { VideoContext } from '@/components/VideoContainer';
@@ -24,9 +24,10 @@ type DynamicChessOverlayProps = Omit<ChessOverlayProps, 'sizeRatio'> & {
     x_max: number;
     y_max: number;
   };
+  handleRemove?: () => void;
 };
 
-interface Position {
+interface Coordinate {
     x: number;
     y: number;
 }
@@ -37,21 +38,26 @@ function DynamicChessOverlay({
   evaluation, 
   opacity = 1,
   movement = { move: null, progress: 1 },
-  boundingBox
+  boundingBox,
+  handleRemove
 }: DynamicChessOverlayProps) {
 	// Size ratio state
-	const {sizeRatio, setSizeRatio} = useContext(VideoContext);
+	const {sizeRatio, setSizeRatio, corner, setCorner} = useContext(VideoContext);
 
 	// Calculate actual board size in pixels
 	const boundingBoxWidth = boundingBox.x_max - boundingBox.x_min;
 	const boundingBoxHeight = boundingBox.y_max - boundingBox.y_min;
 	const actualBoardSize = sizeRatio * Math.min(boundingBoxWidth * (8/9), boundingBoxHeight);
 
-	// Initialize position at top-left of bounding box
-	const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
+	// Derived constants for pixel coordinates from percentile-based corner
+	const corner_x = boundingBoxWidth * corner.x_offsetRatio;
+	const corner_y = boundingBoxHeight * corner.y_offsetRatio;
+
 	const [isDragging, setIsDragging] = useState(false);
-	const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
+	const [dragOffset, setDragOffset] = useState<Coordinate>({ x: 0, y: 0 });
 	const overlayRef = useRef<HTMLDivElement>(null);
+
+	// useEffect(() => {console.log("current drag offset", dragOffset)}, [dragOffset])
 
 	const handleMouseDown = useCallback((e: React.MouseEvent) => {
 		if (!overlayRef.current) return;
@@ -70,7 +76,7 @@ function DynamicChessOverlay({
 	const handleMouseMove = useCallback((e: MouseEvent) => {
 		if (!isDragging) return;
 		
-		// Calculate new position relative to bounding box
+		// Calculate new corner relative to bounding box in pixels
 		let newX = e.clientX - boundingBox.x_min - dragOffset.x;
 		let newY = e.clientY - boundingBox.y_min - dragOffset.y;
 		
@@ -84,54 +90,63 @@ function DynamicChessOverlay({
 		newX = Math.max(0, Math.min(newX, maxX));
 		newY = Math.max(0, Math.min(newY, maxY));
 		
-		setPosition({ x: newX, y: newY });
-	}, [isDragging, dragOffset, boundingBox, actualBoardSize, boundingBoxWidth, boundingBoxHeight]);
+		// Convert pixel coordinates to percentile-based coordinates
+		const newXRatio = newX / boundingBoxWidth;
+		const newYRatio = newY / boundingBoxHeight;
+		
+		setCorner({ x_offsetRatio: newXRatio, y_offsetRatio: newYRatio });
+	}, [isDragging, dragOffset, boundingBoxWidth, boundingBoxHeight, actualBoardSize]);
 
 	const handleMouseUp = useCallback(() => {
 		setIsDragging(false);
 	}, []);
 
-  React.useEffect(() => {
-    const overlayWidth = actualBoardSize * (9 / 8);
-    const overlayHeight = actualBoardSize;
+	useEffect(() => {
+		const overlayWidth = actualBoardSize * (9 / 8);
+		const overlayHeight = actualBoardSize;
 
-    let newX = position.x;
-    let newY = position.y;
+		let newX = corner_x;
+		let newY = corner_y;
 
-    const maxX = boundingBoxWidth - overlayWidth;
-    const maxY = boundingBoxHeight - overlayHeight;
+		const maxX = boundingBoxWidth - overlayWidth;
+		const maxY = boundingBoxHeight - overlayHeight;
 
-    let changed = false;
+		let changed = false;
 
-    if (newX > maxX) {
-      newX = Math.max(0, maxX);
-      changed = true;
-    }
-    if (newY > maxY) {
-      newY = Math.max(0, maxY);
-      changed = true;
-    }
+		if (newX > maxX) {
+			newX = Math.max(0, maxX);
+			changed = true;
+		}
+		if (newY > maxY) {
+			newY = Math.max(0, maxY);
+			changed = true;
+		}
 
-    if (changed) {
-      setPosition({ x: newX, y: newY });
-    }
-  }, [sizeRatio, actualBoardSize, boundingBoxWidth, boundingBoxHeight]);
+		if (changed) {
+			// Convert pixel coordinates back to percentile-based coordinates
+			const newXRatio = newX / boundingBoxWidth;
+			const newYRatio = newY / boundingBoxHeight;
+			setCorner({ x_offsetRatio: newXRatio, y_offsetRatio: newYRatio });
+		}
+	}, [sizeRatio, actualBoardSize, boundingBoxWidth, boundingBoxHeight, corner_x, corner_y]);
 
 	// Centering functions
 	const centerVertically = useCallback(() => {
 		const overlayHeight = actualBoardSize;
 		const centerY = (boundingBoxHeight - overlayHeight) / 2;
-		setPosition(prev => ({ ...prev, y: centerY }));
+		const centerYRatio = centerY / boundingBoxHeight;
+		setCorner(prev => ({ ...prev, y_offsetRatio: centerYRatio }));
 	}, [actualBoardSize, boundingBoxHeight]);
 
 	const centerHorizontally = useCallback(() => {
 		const overlayWidth = actualBoardSize * (9/8);
 		const centerX = (boundingBoxWidth - overlayWidth) / 2;
-		setPosition(prev => ({ ...prev, x: centerX }));
+		const centerXRatio = centerX / boundingBoxWidth;
+		setCorner(prev => ({ ...prev, x_offsetRatio: centerXRatio }));
 	}, [actualBoardSize, boundingBoxWidth]);
 
 	// Add and remove event listeners
-	React.useEffect(() => {
+	useEffect(() => {
 		if (isDragging) {
 			document.addEventListener('mousemove', handleMouseMove);
 			document.addEventListener('mouseup', handleMouseUp);
@@ -151,8 +166,8 @@ function DynamicChessOverlay({
 					className="cursor-move select-none"
 					style={{ 
 						position: 'fixed',
-						left: `${boundingBox.x_min + position.x}px`,
-						top: `${boundingBox.y_min + position.y}px`,
+						left: `${boundingBox.x_min + corner_x}px`,
+						top: `${boundingBox.y_min + corner_y}px`,
 						transition: isDragging ? 'none' : 'transform 0.1s ease',
 						zIndex: isDragging ? 50 : 10,
 					}}
@@ -185,6 +200,13 @@ function DynamicChessOverlay({
 						className="w-full"
 					/>
 				</div>
+				<ContextMenuItem 
+					onClick={handleRemove} 
+					className="text-red-600 focus:text-red-600"
+					disabled={!handleRemove}
+				>
+					Remove Overlay
+				</ContextMenuItem>
 			</ContextMenuContent>
 		</ContextMenu>
 	);

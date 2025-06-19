@@ -420,6 +420,9 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
               {formatTime(isEnabled ? currentTime : 0)} / {formatTime(isEnabled ? duration : 0)}
             </div>
           </div>
+
+          {/* <div className="w-100 h-100 bg-amber-700"></div> */}
+
           
           {/* Progress slider with checkpoint markers */}
             <div className="w-full relative">

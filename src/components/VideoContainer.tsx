@@ -3,6 +3,11 @@ import Timeline from "./TimeLine";
 import { AppContext } from "@/App";
 import DynamicChessOverlay from "./DynamicChessOverlay";
 
+interface Offset {
+    x_offsetRatio: number;
+    y_offsetRatio: number;
+}
+
 interface VideoContainerProps {
   videoPath: string | null;
 }
@@ -13,17 +18,6 @@ interface OverlayType {
   timestamp: number;
 }
 
-interface VideoContextType {
-  isPlaying: boolean;
-  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
-  currentTime: number;
-  setCurrentTime: React.Dispatch<React.SetStateAction<number>>;
-  checkpoints: number[];
-  setCheckpoints: React.Dispatch<React.SetStateAction<number[]>>;
-  createCheckpoint: (timestamp: number) => void;
-  sizeRatio: number;
-  setSizeRatio: React.Dispatch<React.SetStateAction<number>>;
-}
 
 interface BoundingBox {
   x_min: number;
@@ -37,6 +31,20 @@ export interface VideoContainerRef {
   calculateBoardSize: () => number | undefined;
 }
 
+interface VideoContextType {
+  isPlaying: boolean;
+  setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
+  currentTime: number;
+  setCurrentTime: React.Dispatch<React.SetStateAction<number>>;
+  checkpoints: number[];
+  setCheckpoints: React.Dispatch<React.SetStateAction<number[]>>;
+  createCheckpoint: (timestamp: number) => void;
+  sizeRatio: number;
+  setSizeRatio: React.Dispatch<React.SetStateAction<number>>;
+  corner: Offset;
+  setCorner: React.Dispatch<React.SetStateAction<Offset>>;
+}
+
 export const VideoContext = React.createContext<VideoContextType>({
   isPlaying: false,
   setIsPlaying: () => {},
@@ -46,11 +54,14 @@ export const VideoContext = React.createContext<VideoContextType>({
   setCheckpoints: () => {},
   createCheckpoint: () => {},
   sizeRatio: 0.8,
-  setSizeRatio: () => {}
+  setSizeRatio: () => {},
+  corner: { x_offsetRatio: 0, y_offsetRatio: 0 },
+  setCorner: () => {}
 });
 
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
   const { positions, currentMoveIndex, setTimestamps} = React.useContext(AppContext);
+  const [corner, setCorner] = useState<Offset>({ x_offsetRatio: 0, y_offsetRatio: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
@@ -152,7 +163,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     }
   }, [isVideoLoaded]);
 
-
   useEffect(() => {
     // Update bounding box when video element resizes
     if (!videoRef.current || !isVideoLoaded) return;
@@ -166,6 +176,21 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     // Cleanup observer on unmount or when dependencies change
     return () => {
       resizeObserver.disconnect();
+    };
+  }, [isVideoLoaded]);
+
+  useEffect(() => {
+    // Update bounding box as user scrolls
+    if (!isVideoLoaded) return;
+
+    const handleScroll = () => {
+      updateVideoBoundingBox();
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
     };
   }, [isVideoLoaded]);
 
@@ -235,20 +260,32 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     }
   }
 
+  const handleRemoveOverlay = () => {
+    setOverlays((prev) => {
+      const updated = [...prev];
+      updated.splice(currentOverlayId, 1);
+      return updated;
+    });
+    setCurrentOverlayId(0);
+  }
+
   return (
       <VideoContext.Provider value={{ 
         isPlaying, setIsPlaying,
         currentTime, setCurrentTime,
         checkpoints, setCheckpoints,
-        createCheckpoint, sizeRatio, setSizeRatio}}>
+        createCheckpoint, 
+        sizeRatio, setSizeRatio,
+        corner, setCorner}}>
         <div className="flex flex-col justify-center items-center w-full">
           <div className="w-full max-w-full aspect-video bg-black rounded-t-lg relative" onDoubleClick={handleOverlaying}>
             {overlays[currentOverlayId].fen && (videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ? (
               <DynamicChessOverlay 
-                currentFen={overlays[currentOverlayId].fen} 
-                evaluation={null} 
-                opacity={overlays[currentOverlayId].timestamp === currentTime ? 1 : 0.6}
-                boundingBox={videoBoundingBox}
+              currentFen={overlays[currentOverlayId].fen} 
+              evaluation={null} 
+              opacity={overlays[currentOverlayId].timestamp === currentTime ? 1 : 0.6}
+              boundingBox={videoBoundingBox}
+              handleRemove={overlays[currentOverlayId].timestamp === currentTime ? handleRemoveOverlay : undefined}
               />
             ) : null}
             
