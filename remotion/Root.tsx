@@ -5,8 +5,8 @@ import './style.css';
 import data from './export.json'
  
 export const RemotionRoot: React.FC = () => {
-  const framePerMove = 5;
-  const timePerMove = 0.2;
+  const framePerMove = data.framePerMove;
+  const timePerMove = data.timePerMove;
 
   return (
     <>

@@ -1,9 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { open } from '@tauri-apps/plugin-dialog';
-// import { invoke, convertFileSrc} from '@tauri-apps/api/core';
-import { writeTextFile, BaseDirectory } from '@tauri-apps/plugin-fs';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc} from '@tauri-apps/api/core';
+import { writeTextFile} from '@tauri-apps/plugin-fs';
 import AnalysisBoard from "./components/AnalysisBoard";
 import VideoContainer, { VideoContainerRef } from "./components/VideoContainer";
 import ExportLoadingDialog from "./components/ExportLoadingDialog";
@@ -43,10 +42,13 @@ function App() {
   const [moves, setMoves] = useState<string[]>([]); // Move history (SAN)
   const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(0);
   const EvalCache = useRef<{ [fen: string]: { evaluation: number; bestMove: string } }>({});  
+  
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportTotal, setExportTotal] = useState(0);
   const [shouldCompleteExport, setShouldCompleteExport] = useState(false);
+  const [isExportComplete, setIsExportComplete] = useState(false);
+  const [outputLog, setOutputLog] = useState<string>("");
   
   // State for batch evaluation queue
   const [fenQueue, setFenQueue] = useState<string[]>([]);
@@ -80,6 +82,8 @@ function App() {
     
     // Prepare export data with evaluations and board size
     const exportData = {
+      framePerMove: 5,
+      timePerMove: 0.2,
       positions,
       moves: [null, ...moves],
       timestamps,
@@ -89,26 +93,50 @@ function App() {
         bestMove: fen in EvalCache.current ? EvalCache.current[fen].bestMove : null
       }))
     };
-    
-    writeTextFile(
-      'export.json', 
-      JSON.stringify(exportData, null, 2), 
-      { baseDir: BaseDirectory.AppLocalData }
-    ).then(() => {
-      // Construct the file URL for the exported file
-      const filePath = `C:/Users/User/AppData/Local/com.tauri.dev/export.json`;
-      console.log("Exported data with evaluations to export.json. File URL:", filePath);
-    }).catch((error) => {
-      console.error("Failed to export data:", error);
-    }).finally(() => {
-      // Reset all export-related state
-      setIsExporting(false);
-      setExportProgress(0);
-      setExportTotal(0);
-      setFenQueue([]);
-      setShouldCompleteExport(false);
-    });
+
+    const customPath = "C:/Users/User/Documents/boardcast/remotion/export.json";
+
+    writeTextFile(customPath, JSON.stringify(exportData, null, 2))
+      .then(async () => {
+        console.log("Exported data with evaluations to:", customPath);
+        setIsExportComplete(true);
+
+        // Example: Run Python script after export
+        try {
+          const result = await invoke<string>("run_python_script", {
+            script: "render.py", // Replace with your script name
+            cliArgs: [], // Replace with your arguments
+            osEnv: "Windows"
+          });
+          console.log("Python script output:", result);
+          setOutputLog(result); // Optionally show output in your dialog
+        } catch (err) {
+          console.error("Python script error:", err);
+          setOutputLog(String(err));
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to export data:", error);
+        // Reset export state on error
+        setIsExporting(false);
+        setExportProgress(0);
+        setExportTotal(0);
+        setFenQueue([]);
+        setShouldCompleteExport(false);
+      });
+
+      
   }, [shouldCompleteExport]);
+
+  // Handle finish button click
+  const handleFinishExport = () => {
+    setIsExporting(false);
+    setExportProgress(0);
+    setExportTotal(0);
+    setFenQueue([]);
+    setShouldCompleteExport(false);
+    setIsExportComplete(false);
+  };
   
   const handleLoadVideo = async () => {
     const selected = await open({
@@ -126,6 +154,7 @@ function App() {
   const handleExport = () => {
     setIsExporting(true);
     setExportProgress(0);
+    setIsExportComplete(false);
     
     // Calculate positions that need evaluation
     const positionsToEvaluate = positions.filter(fen => 
@@ -176,6 +205,9 @@ function App() {
             isOpen={isExporting}
             progress={exportProgress}
             total={exportTotal}
+            isComplete={isExportComplete}
+            outputLog={outputLog}
+            onFinish={handleFinishExport}
           />
         </AppContext.Provider>
       </div>

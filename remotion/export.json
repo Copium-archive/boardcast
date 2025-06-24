@@ -1,24 +1,26 @@
 {
+  "framePerMove": 5,
+  "timePerMove": 0.2,
   "positions": [
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-    "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
-    "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
-    "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    "rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1",
+    "rnbqkbnr/1ppppppp/8/p7/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 2",
+    "rnbqkbnr/1ppppppp/8/p7/P6P/8/1PPPPPP1/RNBQKBNR b KQkq - 0 2",
+    "rnbqkbnr/1pppppp1/8/p6p/P6P/8/1PPPPPP1/RNBQKBNR w KQkq - 0 3"
   ],
   "moves": [
     null,
-    "e4",
-    "e5",
-    "Nf3",
-    "Nc6"
+    "a4",
+    "a5",
+    "h4",
+    "h5"
   ],
   "timestamps": [
-    0,
-    1.4,
-    2,
-    2.6,
-    3.5
+    0.4,
+    0.8,
+    1.2,
+    1.7,
+    2.2
   ],
   "boardSize": 1024,
   "evaluations": [
@@ -27,20 +29,20 @@
       "bestMove": "e2e4"
     },
     {
-      "evaluation": -0.22,
-      "bestMove": "c7c5"
+      "evaluation": 0.12,
+      "bestMove": "e7e5"
     },
     {
-      "evaluation": 0.32,
-      "bestMove": "g1f3"
+      "evaluation": 0.53,
+      "bestMove": "e2e4"
     },
     {
-      "evaluation": -0.29,
-      "bestMove": "b8c6"
+      "evaluation": 0.47,
+      "bestMove": "e7e5"
     },
     {
-      "evaluation": 0.23,
-      "bestMove": "f1c4"
+      "evaluation": 0.52,
+      "bestMove": "e2e4"
     }
   ]
 }

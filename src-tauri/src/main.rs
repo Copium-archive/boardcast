@@ -7,16 +7,62 @@ use tauri::command;
 // Import and initialize Tauri Dialog plugin (v2)
 use tauri_plugin_dialog::init as dialog_init;
 
-#[command]
-fn run_python_script(script: String, cli_args: Vec<String>) -> Result<String, String> {
-    let wsl_path = "/mnt/c/Users/User/Documents/sample_script";
+#[derive(serde::Deserialize)]
+pub enum OsEnvironment {
+    Windows,
+    Wsl,
+}
 
+impl Default for OsEnvironment {
+    fn default() -> Self {
+        OsEnvironment::Windows
+    }
+}
+
+#[command]
+fn run_python_script(
+    script: String, 
+    cli_args: Vec<String>,
+    os_env: Option<OsEnvironment>
+) -> Result<String, String> {
+    let os_env = os_env.unwrap_or_default();
+    
     // Validate script name
     if !script.ends_with(".py") || script.contains('/') || script.contains('\\') {
         return Err("Invalid script name.".to_string());
     }
 
-    // Escape and format CLI arguments
+    match os_env {
+        OsEnvironment::Windows => run_windows_script(script, cli_args),
+        OsEnvironment::Wsl => run_wsl_script(script, cli_args),
+    }
+}
+
+fn run_windows_script(script: String, cli_args: Vec<String>) -> Result<String, String> {
+    let windows_path = r"C:\Users\User\Documents\boardcast\py-util";
+    
+    // For Windows, we'll use cmd to run the script
+    let mut command = Command::new("cmd");
+    command.args(&["/C", "cd", "/D", windows_path, "&&", "pipenv", "run", "python", &script]);
+    
+    // Add CLI arguments
+    for arg in cli_args {
+        command.arg(arg);
+    }
+
+    let output = command.output().map_err(|e| e.to_string())?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
+fn run_wsl_script(script: String, cli_args: Vec<String>) -> Result<String, String> {
+    let wsl_path = "/mnt/c/Users/User/Documents/sample_script";
+
+    // Escape and format CLI arguments for WSL
     let args_str = cli_args
         .iter()
         .map(|arg| format!("'{}'", arg.replace('\'', "'\\''")))
