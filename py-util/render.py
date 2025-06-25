@@ -3,70 +3,90 @@ import sys
 
 def get_overlay_command(overlay_segment, background_segment):
     """
-    Generate an ffmpeg command to overlay a video segment, holding the last frame
-    if the background duration is longer.
+    Generate ffmpeg command to overlay a segment from chess-animation.mp4 onto background.mp4.
+    
+    If the background segment is longer than the overlay segment, the overlay will
+    play and then freeze on its last frame for the remaining duration.
 
+    The output will be the full duration of background.mp4 with the overlay applied
+    during the specified time range.
+    
     Args:
-        overlay_segment: [start, end] time for the clip from chess-animation.mp4.
-        background_segment: [start, end] time on background.mp4 to show the overlay.
-
+        overlay_segment: [start_time, end_time] for chess-animation.mp4 segment
+        background_segment: [start_time, end_time] for background.mp4 segment to apply overlay
+    
     Returns:
-        A list of strings representing the ffmpeg command and its arguments.
+        String command for ffmpeg.exe
     """
     overlay_start, overlay_end = overlay_segment
     bg_start, bg_end = background_segment
     
-    # Calculate the duration of the clip to be extracted from the overlay video.
+    # Calculate durations
     overlay_duration = overlay_end - overlay_start
+    bg_overlay_duration = bg_end - bg_start
     
-    # This filter graph performs the magic:
-    # 1. [1:v]setpts=PTS-STARTPTS... : Takes the overlay clip and resets its timestamp to start at 0.
-    # 2. ...overlay=... : Places the overlay on the background video ([0:v]).
-    # 3. eof_action=repeat : THIS IS THE KEY. When the overlay clip ends, it repeats the last frame.
-    # 4. enable='between(t,...)': Activates the overlay (playing or frozen) only during the background segment time.
-    filter_graph = (
-        f"[1:v]setpts=PTS-STARTPTS[overlay_trimmed];"
-        f"[0:v][overlay_trimmed]overlay=x=0:y=0:eof_action=repeat:enable='between(t,{bg_start:.4f},{bg_end:.4f})'"
+    # This is the new logic for handling the freeze-frame
+    # We will build the filter chain for the overlay video ([1:v])
+    overlay_filter_chain = []
+    
+    # Calculate if we need to freeze the last frame
+    freeze_duration = bg_overlay_duration - overlay_duration
+    
+    if freeze_duration > 0.001: # Use a small epsilon for float comparison
+        # tpad filter: pads the end of the video stream by cloning the last frame
+        # stop_mode=clone: specifies to repeat the last frame
+        # stop_duration: how long to repeat the last frame for
+        tpad_filter = f'tpad=stop_mode=clone:stop_duration={freeze_duration}'
+        overlay_filter_chain.append(tpad_filter)
+        
+    # setpts filter: delays the presentation timestamp (PTS) of the overlay
+    # This ensures the (now padded) overlay starts at the correct time (bg_start)
+    setpts_filter = f'setpts=PTS+{bg_start}/TB'
+    overlay_filter_chain.append(setpts_filter)
+    
+    # Join all the filters for the overlay stream with commas
+    full_overlay_filters = ','.join(overlay_filter_chain)
+    
+    # Construct the final filter_complex string
+    # 1. Take the overlay stream [1:v], apply the tpad and setpts filters, and label the output [delayed_overlay].
+    # 2. Take the background stream [0:v] and the [delayed_overlay] stream, and overlay them.
+    # 3. The 'enable' option ensures the overlay is only visible between bg_start and bg_end.
+    filter_complex = (
+        f'"[1:v]{full_overlay_filters}[delayed_overlay];'
+        f'[0:v][delayed_overlay]overlay=0:0:enable=\'between(t,{bg_start},{bg_end})\'"'
     )
-
-    # Construct the command as a list of arguments.
-    # We no longer need to compare durations in Python; ffmpeg handles it all.
-    command_list = [
-        'ffmpeg.exe',
-        # Input 0: The main background video. Its full duration is used.
-        '-i', 'background.mp4',
-        # Input 1: The overlay video, with -ss and -t to extract only the desired clip.
-        '-ss', f'{overlay_start:.4f}',
-        '-t', f'{overlay_duration:.4f}',
-        '-i', 'chess-animation.mp4',
-        # The complex filter graph that combines them.
-        '-filter_complex', filter_graph,
-        # Copy the audio stream from the background without re-encoding.
-        '-c:a', 'copy',
-        # Overwrite output file if it exists.
-        '-y', 'output.mp4'
-    ]
     
-    return command_list
+    command = (
+        f'ffmpeg.exe '
+        f'-i background.mp4 '
+        # Use -ss and -t on the input to efficiently trim the overlay segment
+        f'-ss {overlay_start} -t {overlay_duration} -i chess-animation.mp4 '
+        f'-filter_complex {filter_complex} '
+        # Copy the audio from the background video without re-encoding
+        f'-c:a copy '
+        f'-y output.mp4'
+    )
+    
+    return command
 
-def execute_ffmpeg_command(command_list):
+def execute_ffmpeg_command(command):
     """
     Execute an ffmpeg command and return the result
     
     Args:
-        command_list: A list of strings representing the command to execute
+        command: String command to execute
     
     Returns:
         dict with 'success' (bool), 'output' (str), 'error' (str)
     """
     try:
+        # For Windows, use shell=True to handle ffmpeg.exe properly
         result = subprocess.run(
-            command_list, 
-            shell=False,
-            capture_output=True, 
-            text=True, 
-            timeout=300,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
         )
         
         return {
@@ -77,27 +97,36 @@ def execute_ffmpeg_command(command_list):
         }
         
     except subprocess.TimeoutExpired:
-        return {'success': False, 'output': '', 'error': 'Command timed out', 'return_code': -1}
+        return {
+            'success': False,
+            'output': '',
+            'error': 'Command timed out after 5 minutes',
+            'return_code': -1
+        }
     except FileNotFoundError:
-        return {'success': False, 'output': '', 'error': 'ffmpeg.exe not found', 'return_code': -1}
+        return {
+            'success': False,
+            'output': '',
+            'error': 'ffmpeg.exe not found in PATH or current directory',
+            'return_code': -1
+        }
     except Exception as e:
-        return {'success': False, 'output': '', 'error': f'Unexpected error: {str(e)}', 'return_code': -1}
+        return {
+            'success': False,
+            'output': '',
+            'error': f'Unexpected error: {str(e)}',
+            'return_code': -1
+        }
 
 # --- Example Usage with your requested scenario ---
 # Overlay a 0.2-second clip onto a 4-second segment of the background.
-overlay_seg = [0.2, 0.4]  # Duration: 0.2s
+overlay_seg = [0.2, 0.8]  # Duration: 0.2s
 bg_seg = [1, 5]          # Duration: 4.0s
 
 # The overlay will play from t=1.0 to t=1.2, and its last frame will be
 # frozen on screen from t=1.2 until t=5.0.
 
 cmd_list = get_overlay_command(overlay_seg, bg_seg)
-
-print("--- Generated Command Breakdown ---")
-# Join the list into a single string for readable printing
-readable_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd_list)
-print(readable_cmd)
-print("-----------------------------------")
 
 result = execute_ffmpeg_command(cmd_list)
 
