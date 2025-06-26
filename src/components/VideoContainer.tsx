@@ -18,6 +18,10 @@ interface OverlayType {
   timestamp: number;
 }
 
+interface Coordinate {
+    x: number;
+    y: number;
+}
 
 interface BoundingBox {
   x_min: number;
@@ -29,6 +33,7 @@ interface BoundingBox {
 // Define the ref interface for parent component access
 export interface VideoContainerRef {
   calculateBoardSize: () => number | undefined;
+  calculateOffset: () => Coordinate | undefined;
 }
 
 interface VideoContextType {
@@ -86,9 +91,19 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     return Math.min(width * 8/9, height) * sizeRatio;
   }
 
+  const calculateOffset = () => {
+    if(!videoRef.current) return;
+    const width = videoRef.current.videoWidth;
+    const height = videoRef.current.videoHeight;
+    const x = width * corner.x_offsetRatio;
+    const y = height * corner.y_offsetRatio; 
+    return { x, y };
+  }
+
   // Expose calculateBoardSize to parent component
   useImperativeHandle(ref, () => ({
-    calculateBoardSize
+    calculateBoardSize,
+    calculateOffset
   }));
 
   const createCheckpoint = (timestamp: number) => {

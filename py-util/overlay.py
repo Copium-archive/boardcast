@@ -1,86 +1,111 @@
 import subprocess
 import sys
+import json
+import os
 
-def get_overlay_command(overlay_segment, background_segment):
+def get_multiple_overlay_command(overlay_segs, bg_segs, xy_offset=None, background_file="background.mp4", overlay_file="chess-animation.mp4", output_file="output.mp4"):
     """
-    Generate ffmpeg command to overlay a segment from chess-animation.mp4 onto background.mp4.
-    
-    If the background segment is longer than the overlay segment, the overlay will
-    play and then freeze on its last frame for the remaining duration.
+    Generate a single ffmpeg command to apply multiple overlays sequentially at a fixed position.
 
-    The output will be the full duration of background.mp4 with the overlay applied
-    during the specified time range.
-    
+    Each overlay can have a different duration than its corresponding background
+    segment. If the background segment is longer, the overlay will freeze on its
+    last frame.
+
     Args:
-        overlay_segment: [start_time, end_time] for chess-animation.mp4 segment
-        background_segment: [start_time, end_time] for background.mp4 segment to apply overlay
-    
+        overlay_segs (list): A list of [start, end] times for segments from the overlay_file.
+        bg_segs (list): A list of [start, end] times for when to apply overlays on the background_file.
+        xy_offset (list or tuple, optional): A single [x, y] coordinate pair for the position
+                                             of ALL overlays. If None, defaults to [0, 0].
+        background_file (str): Path to the background video.
+        overlay_file (str): Path to the overlay video.
+        output_file (str): Path for the output video.
+
     Returns:
         String command for ffmpeg.exe
     """
-    overlay_start, overlay_end = overlay_segment
-    bg_start, bg_end = background_segment
+    if len(overlay_segs) != len(bg_segs):
+        raise ValueError("The number of overlay segments must match the number of background segments.")
+
+    # --- Handle the single xy_offset for all overlays ---
+    if xy_offset is None:
+        xy_offset = [0, 0]  # Default to top-left corner
     
-    # Calculate durations
-    overlay_duration = overlay_end - overlay_start
-    bg_overlay_duration = bg_end - bg_start
+    if not isinstance(xy_offset, (list, tuple)) or len(xy_offset) != 2:
+        raise ValueError("xy_offset must be a list or tuple of two numbers, e.g., [x, y].")
     
-    # This is the new logic for handling the freeze-frame
-    # We will build the filter chain for the overlay video ([1:v])
-    overlay_filter_chain = []
+    x_pos, y_pos = xy_offset
+
+    # --- 1. Build the Input File List ---
+    input_cmds = [f'-i {background_file}']
+    for seg in overlay_segs:
+        start, end = seg
+        duration = end - start
+        input_cmds.append(f'-ss {start} -t {duration} -i {overlay_file}')
     
-    # Calculate if we need to freeze the last frame
-    freeze_duration = bg_overlay_duration - overlay_duration
-    
-    if freeze_duration > 0.001: # Use a small epsilon for float comparison
-        # tpad filter: pads the end of the video stream by cloning the last frame
-        # stop_mode=clone: specifies to repeat the last frame
-        # stop_duration: how long to repeat the last frame for
-        tpad_filter = f'tpad=stop_mode=clone:stop_duration={freeze_duration}'
-        overlay_filter_chain.append(tpad_filter)
+    full_input_str = ' '.join(input_cmds)
+
+    # --- 2. Build the Filter Complex Chain ---
+    filter_complex_parts = []
+    last_video_stream = "[0:v]"  # Start with the background video stream
+
+    # Iterate through each overlay operation. The xy position is now fixed from outside the loop.
+    for i, (overlay_seg, bg_seg) in enumerate(zip(overlay_segs, bg_segs), start=1):
+        overlay_start, overlay_end = overlay_seg
+        bg_start, bg_end = bg_seg
+
+        overlay_duration = overlay_end - overlay_start
+        bg_overlay_duration = bg_end - bg_start
+
+        current_overlay_stream = f"[{i}:v]"
+        processed_overlay_stream = f"[processed_overlay_{i}]"
+        output_stream_label = f"[v_out_{i}]"
+
+        # --- Sub-filter for the current overlay (tpad, setpts) ---
+        overlay_sub_filters = []
+        freeze_duration = bg_overlay_duration - overlay_duration
+        if freeze_duration > 0.001:
+            tpad_filter = f'tpad=stop_mode=clone:stop_duration={freeze_duration}'
+            overlay_sub_filters.append(tpad_filter)
         
-    # setpts filter: delays the presentation timestamp (PTS) of the overlay
-    # This ensures the (now padded) overlay starts at the correct time (bg_start)
-    setpts_filter = f'setpts=PTS+{bg_start}/TB'
-    overlay_filter_chain.append(setpts_filter)
-    
-    # Join all the filters for the overlay stream with commas
-    full_overlay_filters = ','.join(overlay_filter_chain)
-    
-    # Construct the final filter_complex string
-    # 1. Take the overlay stream [1:v], apply the tpad and setpts filters, and label the output [delayed_overlay].
-    # 2. Take the background stream [0:v] and the [delayed_overlay] stream, and overlay them.
-    # 3. The 'enable' option ensures the overlay is only visible between bg_start and bg_end.
-    filter_complex = (
-        f'"[1:v]{full_overlay_filters}[delayed_overlay];'
-        f'[0:v][delayed_overlay]overlay=0:0:enable=\'between(t,{bg_start},{bg_end})\'"'
-    )
-    
+        setpts_filter = f'setpts=PTS+{bg_start}/TB'
+        overlay_sub_filters.append(setpts_filter)
+
+        filter_complex_parts.append(
+            f'{current_overlay_stream}{",".join(overlay_sub_filters)}{processed_overlay_stream}'
+        )
+
+        # --- Overlay filter using the single x_pos and y_pos ---
+        overlay_filter = (
+            f'{last_video_stream}{processed_overlay_stream}'
+            f'overlay={x_pos}:{y_pos}:enable=\'between(t,{bg_start},{bg_end})\''
+            f'{output_stream_label}'
+        )
+        filter_complex_parts.append(overlay_filter)
+        
+        last_video_stream = output_stream_label
+
+    full_filter_complex = f'"{";".join(filter_complex_parts)}"'
+
+    # --- 3. Assemble the Final Command ---
     command = (
-        f'ffmpeg.exe '
-        f'-i background.mp4 '
-        # Use -ss and -t on the input to efficiently trim the overlay segment
-        f'-ss {overlay_start} -t {overlay_duration} -i chess-animation.mp4 '
-        f'-filter_complex {filter_complex} '
-        # Copy the audio from the background video without re-encoding
+        f'ffmpeg.exe {full_input_str} '
+        f'-filter_complex {full_filter_complex} '
+        f'-map "{last_video_stream}" '
+        f'-map 0:a? '
         f'-c:a copy '
-        f'-y output.mp4'
+        f'-y {output_file}'
     )
     
     return command
 
 def execute_ffmpeg_command(command):
     """
-    Execute an ffmpeg command and return the result
-    
-    Args:
-        command: String command to execute
-    
-    Returns:
-        dict with 'success' (bool), 'output' (str), 'error' (str)
+    Execute an ffmpeg command and return the result.
+    (This function remains unchanged)
     """
     try:
-        # For Windows, use shell=True to handle ffmpeg.exe properly
+        print(f"Executing ffmpeg in working directory: {os.getcwd()}")
+        print(f"Generated Command:\n{command}\n")
         result = subprocess.run(
             command,
             shell=True,
@@ -88,47 +113,49 @@ def execute_ffmpeg_command(command):
             text=True,
             timeout=300  # 5 minute timeout
         )
-        
-        return {
-            'success': result.returncode == 0,
-            'output': result.stdout,
-            'error': result.stderr,
-            'return_code': result.returncode
-        }
-        
+        return { 'success': result.returncode == 0, 'output': result.stdout, 'error': result.stderr, 'return_code': result.returncode }
     except subprocess.TimeoutExpired:
-        return {
-            'success': False,
-            'output': '',
-            'error': 'Command timed out after 5 minutes',
-            'return_code': -1
-        }
+        return { 'success': False, 'error': 'Command timed out after 5 minutes', 'return_code': -1 }
     except FileNotFoundError:
-        return {
-            'success': False,
-            'output': '',
-            'error': 'ffmpeg.exe not found in PATH or current directory',
-            'return_code': -1
-        }
+        return { 'success': False, 'error': 'ffmpeg.exe not found in PATH or current directory', 'return_code': -1 }
     except Exception as e:
-        return {
-            'success': False,
-            'output': '',
-            'error': f'Unexpected error: {str(e)}',
-            'return_code': -1
-        }
+        return { 'success': False, 'error': f'Unexpected error: {str(e)}', 'return_code': -1 }
 
-# Example usage:
-overlay_seg = [0.2, 0.4]  # From 0.2s to 0.4s in chess-animation.mp4
-bg_seg = [1, 5]         # Overlay will appear from 1s to 1.2s in the background video
-cmd = get_overlay_command(overlay_seg, bg_seg)
-print(f"Generated command: {cmd}")
-result = execute_ffmpeg_command(cmd)
+remotion_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'remotion'))
+export_json_path = os.path.join(remotion_dir, 'export.json')
 
-if result['success']:
-    print("Video overlay completed successfully!")
-    print("Output video has the full duration of background.mp4 with overlay applied during specified time range.")
-else:
-    print(f"Error: {result['error']}")
-    if result['output']:
-        print(f"FFmpeg output: {result['output']}")
+try:
+    with open(export_json_path, 'r', encoding='utf-8') as f:
+        export_data = json.load(f)
+        
+    print("\nLoaded export.json successfully.")
+except FileNotFoundError:
+    print(f"\nCould not find export.json at {export_json_path}")
+except json.JSONDecodeError as e:
+    print(f"\nError decoding export.json: {e}")
+
+# --- Example Usage with your requested scenario ---
+# Define the multiple overlay operations
+overlay_segs = [[0, 0.2], [0.2, 0.4], [0.4, 0.6], [0.6, 0.8], [0.8, 1.0]]
+bg_segs = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]]
+x_offset = export_data.get('x_offset', 0)
+y_offset = export_data.get('y_offset', 0)
+
+# Generate the single, consolidated ffmpeg command
+try:
+    cmd = get_multiple_overlay_command(overlay_segs, bg_segs, xy_offset=[x_offset, y_offset])
+
+    # Execute the command
+    result = execute_ffmpeg_command(cmd)
+
+    if result['success']:
+        print("\nVideo with multiple overlays completed successfully!")
+        print("Output video 'output.mp4' has been created.")
+    else:
+        print(f"\nError executing ffmpeg command (return code: {result['return_code']})")
+        print("-------------------- FFmpeg Error Log --------------------")
+        print(result['error'])
+        print("----------------------------------------------------------")
+
+except ValueError as e:
+    print(f"Error: {e}")

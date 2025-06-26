@@ -3,23 +3,19 @@
 
 [Breakdown]
 progress so far : 
-- Chess animation generated successfully (overlay.py)
-- Individual move can be overlayed onto background.mp4 (render.py)
+- Chess animation generated successfully
 - functional frontend entry point
+- x and y offsets included in export.json
+- current script capable of rendering multiple overlays
 
 To be done : 
 
-(1) how to specify the chess overlay's postion ? (App.tsx, VideoContainer.tsx)
-solution -> include x and y offset in export.json
+(1) extract neccessary data from export.json (overlay.py), including the following fields:
+["x_offset", "y_offset", "timestamps", "timePerMove"]
 
-(2) how share workspace data with rendering scripts in py-util ? (App.tsx)
+let's denote the timestamp as x:
 
-- what fields are required for rendering chess animation ?
-["framePerMove", "timePerMove", "moves", "boardSize", "evaluations"] 
+for rendering chess position : [x-timePerMove] [x] [static overlay] [next move's timestamp]
 
-- what fields are required for overlaying ?
-["x-offset", "y-offset", "timestamps", "timePerMove"]       
-
-solution -> make 2 export.json seperate files for /remotion and /py-util
-
-(3) Update render.py to render the full overlay (render.py)
+(2) make the export button fully functional (App.tsx)
+(3) stream result to frontend, make it comprehensible

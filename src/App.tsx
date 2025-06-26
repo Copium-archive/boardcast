@@ -79,6 +79,7 @@ function App() {
     
     // Get board size from VideoContainer
     const boardSize = videoContainerRef.current?.calculateBoardSize();
+    const corner = videoContainerRef.current?.calculateOffset();
     
     // Prepare export data with evaluations and board size
     const exportData = {
@@ -86,6 +87,8 @@ function App() {
       timePerMove: 0.2,
       positions,
       moves: [null, ...moves],
+      x_offset: corner?.x || 0,
+      y_offset: corner?.y || 0,
       timestamps,
       boardSize,
       evaluations: positions.map(fen => ({

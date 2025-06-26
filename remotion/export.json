@@ -2,18 +2,48 @@
   "framePerMove": 5,
   "timePerMove": 0.2,
   "positions": [
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1",
+    "rnbqkbnr/1ppppppp/8/p7/P7/8/1PPPPPPP/RNBQKBNR w KQkq - 0 2",
+    "rnbqkbnr/1ppppppp/8/p7/P6P/8/1PPPPPP1/RNBQKBNR b KQkq - 0 2",
+    "rnbqkbnr/1pppppp1/8/p6p/P6P/8/1PPPPPP1/RNBQKBNR w KQkq - 0 3"
   ],
   "moves": [
-    null
+    null,
+    "a4",
+    "a5",
+    "h4",
+    "h5"
   ],
+  "x_offset": 143.99999999999994,
+  "y_offset": 768,
   "timestamps": [
-    null
+    0.6,
+    1.6,
+    2.5,
+    3.5,
+    4.6
   ],
   "boardSize": 1024,
   "evaluations": [
     {
       "evaluation": 0.33,
+      "bestMove": "e2e4"
+    },
+    {
+      "evaluation": 0.12,
+      "bestMove": "e7e5"
+    },
+    {
+      "evaluation": 0.53,
+      "bestMove": "e2e4"
+    },
+    {
+      "evaluation": 0.47,
+      "bestMove": "e7e5"
+    },
+    {
+      "evaluation": 0.52,
       "bestMove": "e2e4"
     }
   ]
