@@ -15,14 +15,14 @@
     "h4",
     "h5"
   ],
-  "x_offset": 143.99999999999994,
-  "y_offset": 768,
+  "x_offset": 0,
+  "y_offset": 0,
   "timestamps": [
-    0.6,
-    1.6,
-    2.5,
-    3.5,
-    4.6
+    1,
+    2,
+    3,
+    4,
+    5
   ],
   "boardSize": 1024,
   "evaluations": [

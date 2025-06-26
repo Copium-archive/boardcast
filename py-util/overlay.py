@@ -136,8 +136,14 @@ except json.JSONDecodeError as e:
 
 # --- Example Usage with your requested scenario ---
 # Define the multiple overlay operations
-overlay_segs = [[0, 0.2], [0.2, 0.4], [0.4, 0.6], [0.6, 0.8], [0.8, 1.0]]
-bg_segs = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]]
+timePerMove = export_data.get('timePerMove', 0.2)
+timestamps = export_data.get('timestamps', [])
+numberOfMoves = len(timestamps)
+
+overlay_segs = [[round(i*timePerMove, 3), round((i+1)*timePerMove, 3)] for i in range(numberOfMoves)]
+timestamps.append(7)
+bg_segs = [[round(timestamps[i-1]-timePerMove, 3), timestamps[i]] for i in range(1, numberOfMoves+1)]
+bg_segs[0][0] = round(bg_segs[0][0]+timePerMove, 3)  # padding for inital position
 x_offset = export_data.get('x_offset', 0)
 y_offset = export_data.get('y_offset', 0)
 
