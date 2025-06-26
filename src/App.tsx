@@ -73,63 +73,79 @@ function App() {
     }
   }, [remaining, fenQueue, isExporting, exportTotal]);
 
-  // New useEffect to handle export completion (replaces completeExport function)
-  useEffect(() => {
-    if (!shouldCompleteExport) return;
-    
-    // Get board size from VideoContainer
-    const boardSize = videoContainerRef.current?.calculateBoardSize();
-    const corner = videoContainerRef.current?.calculateOffset();
-    
-    // Prepare export data with evaluations and board size
-    const exportData = {
-      framePerMove: 5,
-      timePerMove: 0.2,
-      positions,
-      moves: [null, ...moves],
-      x_offset: corner?.x || 0,
-      y_offset: corner?.y || 0,
-      timestamps,
-      boardSize,
-      evaluations: positions.map(fen => ({
-        evaluation: fen in EvalCache.current ? EvalCache.current[fen].evaluation : null,
-        bestMove: fen in EvalCache.current ? EvalCache.current[fen].bestMove : null
-      }))
-    };
+useEffect(() => {
+  if (!shouldCompleteExport) return;
+  
+  // Get board size from VideoContainer
+  const boardSize = videoContainerRef.current?.calculateBoardSize();
+  const corner = videoContainerRef.current?.calculateOffset();
+  
+  // Prepare export data with evaluations and board size
+  const exportData = {
+    framePerMove: 5,
+    timePerMove: 0.2,
+    positions,
+    moves: [null, ...moves],
+    x_offset: corner?.x || 0,
+    y_offset: corner?.y || 0,
+    timestamps,
+    boardSize,
+    evaluations: positions.map(fen => ({
+      evaluation: fen in EvalCache.current ? EvalCache.current[fen].evaluation : null,
+      bestMove: fen in EvalCache.current ? EvalCache.current[fen].bestMove : null
+    }))
+  };
 
-    const customPath = "C:/Users/User/Documents/boardcast/remotion/export.json";
+  const customPath = "C:/Users/User/Documents/boardcast/remotion/export.json";
 
-    writeTextFile(customPath, JSON.stringify(exportData, null, 2))
-      .then(async () => {
-        console.log("Exported data with evaluations to:", customPath);
-        setIsExportComplete(true);
+  writeTextFile(customPath, JSON.stringify(exportData, null, 2))
+    .then(async () => {
+      console.log("Exported data with evaluations to:", customPath);
+      setIsExportComplete(true);
 
-        // Example: Run Python script after export
+      // Run the combined video processing script
+      try {
+        console.log("Starting video processing pipeline...");
+        
+        const result = await invoke<string>("run_python_script", {
+          script: "export.py", // Your new combined script name
+          cliArgs: [],
+          osEnv: "Windows"
+        });
+
+        console.log("Video processing pipeline completed");
+        console.log("Python script output:", result);
+
+        // Try to parse the result as JSON to get structured feedback
         try {
-          const result = await invoke<string>("run_python_script", {
-            script: "render.py", // Replace with your script name
-            cliArgs: [], // Replace with your arguments
-            osEnv: "Windows"
-          });
-          console.log("Python script output:", result);
-          setOutputLog(result); // Optionally show output in your dialog
-        } catch (err) {
-          console.error("Python script error:", err);
-          setOutputLog(String(err));
+          const parsedResult = JSON.parse(result);
+          
+          if (parsedResult.success) {
+            setOutputLog(`✅ Video processing completed successfully!\n\n${parsedResult.message || ''}\n\nRender Output:\n${parsedResult.render_output || 'No render output'}\n\nOverlay Output:\n${parsedResult.overlay_output || 'No overlay output'}`);
+          } else {
+            setOutputLog(`❌ Video processing failed:\n\n${parsedResult.error}\n\nRender Output:\n${parsedResult.render_output || 'No render output'}\n\nOverlay Output:\n${parsedResult.overlay_output || 'No overlay output'}`);
+          }
+        } catch {
+          // If result is not JSON, treat it as plain text output
+          setOutputLog(result);
         }
-      })
-      .catch((error) => {
-        console.error("Failed to export data:", error);
-        // Reset export state on error
-        setIsExporting(false);
-        setExportProgress(0);
-        setExportTotal(0);
-        setFenQueue([]);
-        setShouldCompleteExport(false);
-      });
 
-      
-  }, [shouldCompleteExport]);
+      } catch (err) {
+        console.error("Video processing pipeline error:", err);
+        setOutputLog(`❌ Pipeline Error: ${String(err)}`);
+      }
+    })
+    .catch((error) => {
+      console.error("Failed to export data:", error);
+      // Reset export state on error
+      setIsExporting(false);
+      setExportProgress(0);
+      setExportTotal(0);
+      setFenQueue([]);
+      setShouldCompleteExport(false);
+    });
+    
+}, [shouldCompleteExport]);
 
   // Handle finish button click
   const handleFinishExport = () => {

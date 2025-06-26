@@ -11,7 +11,6 @@ e.g :
 
 Ongoing problems: 
 
-- no ffmpeg integration, incomplete video export feature (10)
 - checkpoints can be deleted without first removing the chess overlay (8)
 - checkpoints doesn't reset upon vid reloading (7)
 - duplicated chess positions at diff checkpoints (5)
