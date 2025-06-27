@@ -76,8 +76,8 @@ def chessboard_segmentation(perspective_matrix):
             squares["bottom-right"].append(list(image_corners[2]))
             squares["bottom-left"].append(list(image_corners[3]))
             
-            output_filename = f'square_{row}_{col}.png'
-            mark_and_label_points('chess_match.png', image_corners, output_filename=output_filename)
+            # output_filename = f'square_{row}_{col}.png'
+            # mark_and_label_points('chess_match.png', image_corners, output_filename=output_filename)
 
     # Save all squares to JSON
     print(json.dumps(squares))
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     ordered_points = order_points(points)
     
     # Mark the original corner points
-    mark_and_label_points('chess_match.png', ordered_points, output_filename='contour.png')
+    # mark_and_label_points('chess_match.png', ordered_points, output_filename='contour.png')
     
     # Get perspective transformation matrix
     perspective_matrix = get_matrix(ordered_points)

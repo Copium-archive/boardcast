@@ -6,19 +6,12 @@ import InteractiveChessboard from "./InteractiveChessboard";
 
 type Point = [number, number];
 
-interface ChessboardData {
+interface ChessboardContours {
   'top-left': Point[];
   'top-right': Point[];
   'bottom-right': Point[];
   'bottom-left': Point[];
 }
-
-const chessboardData: ChessboardData = {
-  "top-left": [[449, 360], [489, 360], [530, 360], [571, 360], [612, 360], [653, 360], [693, 360], [734, 360], [442, 387], [484, 387], [526, 387], [568, 387], [610, 387], [652, 387], [694, 387], [736, 388], [434, 416], [478, 416], [521, 416], [565, 416], [608, 416], [651, 416], [694, 416], [738, 416], [426, 447], [471, 447], [516, 447], [561, 447], [606, 447], [650, 447], [695, 447], [739, 447], [418, 480], [464, 480], [511, 480], [557, 480], [603, 480], [649, 480], [696, 480], [742, 480], [409, 515], [457, 515], [505, 515], [553, 515], [601, 515], [649, 515], [696, 515], [744, 515], [399, 553], [449, 553], [499, 553], [548, 553], [598, 553], [647, 553], [697, 553], [746, 553], [389, 594], [440, 594], [492, 594], [544, 593], [595, 593], [646, 593], [698, 593], [749, 593]],
-  "top-right": [[489, 360], [530, 360], [571, 360], [612, 360], [653, 360], [693, 360], [734, 360], [775, 361], [484, 387], [526, 387], [568, 387], [610, 387], [652, 387], [694, 387], [736, 388], [777, 388], [478, 416], [521, 416], [565, 416], [608, 416], [651, 416], [694, 416], [738, 416], [781, 417], [471, 447], [516, 447], [561, 447], [606, 447], [650, 447], [695, 447], [739, 447], [784, 447], [464, 480], [511, 480], [557, 480], [603, 480], [649, 480], [696, 480], [742, 480], [787, 480], [457, 515], [505, 515], [553, 515], [601, 515], [649, 515], [696, 515], [744, 515], [791, 515], [449, 553], [499, 553], [548, 553], [598, 553], [647, 553], [697, 553], [746, 553], [795, 553], [440, 594], [492, 594], [544, 593], [595, 593], [646, 593], [698, 593], [749, 593], [800, 593]],
-  "bottom-right": [[484, 387], [526, 387], [568, 387], [610, 387], [652, 387], [694, 387], [736, 388], [777, 388], [478, 416], [521, 416], [565, 416], [608, 416], [651, 416], [694, 416], [738, 416], [781, 417], [471, 447], [516, 447], [561, 447], [606, 447], [650, 447], [695, 447], [739, 447], [784, 447], [464, 480], [511, 480], [557, 480], [603, 480], [649, 480], [696, 480], [742, 480], [787, 480], [457, 515], [505, 515], [553, 515], [601, 515], [649, 515], [696, 515], [744, 515], [791, 515], [449, 553], [499, 553], [548, 553], [598, 553], [647, 553], [697, 553], [746, 553], [795, 553], [440, 594], [492, 594], [544, 593], [595, 593], [646, 593], [698, 593], [749, 593], [800, 593], [431, 637], [485, 637], [538, 637], [592, 637], [645, 637], [698, 637], [752, 637], [805, 637]],
-  "bottom-left": [[442, 387], [484, 387], [526, 387], [568, 387], [610, 387], [652, 387], [694, 387], [736, 388], [434, 416], [478, 416], [521, 416], [565, 416], [608, 416], [651, 416], [694, 416], [738, 416], [426, 447], [471, 447], [516, 447], [561, 447], [606, 447], [650, 447], [695, 447], [739, 447], [418, 480], [464, 480], [511, 480], [557, 480], [603, 480], [649, 480], [696, 480], [742, 480], [409, 515], [457, 515], [505, 515], [553, 515], [601, 515], [649, 515], [696, 515], [744, 515], [399, 553], [449, 553], [499, 553], [548, 553], [598, 553], [647, 553], [697, 553], [746, 553], [389, 594], [440, 594], [492, 594], [544, 593], [595, 593], [646, 593], [698, 593], [749, 593], [378, 638], [431, 637], [485, 637], [538, 637], [592, 637], [645, 637], [698, 637], [752, 637]]
-};
 
 interface Offset {
     x_offsetRatio: number;
@@ -51,6 +44,7 @@ interface BoundingBox {
 export interface VideoContainerRef {
   calculateBoardSize: () => number | undefined;
   calculateOffset: () => Coordinate | undefined;
+  setChessboardContours: React.Dispatch<React.SetStateAction<ChessboardContours | null>>;
 }
 
 interface VideoContextType {
@@ -100,6 +94,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   const [currentOverlayId, setCurrentOverlayId] = useState<number>(0);
   const [checkpoints, setCheckpoints] = useState<number[]>([]);
   const [sizeRatio, setSizeRatio] = useState(0.8);
+  const [chessboardContours, setChessboardContours] = useState<ChessboardContours | null>(null);
 
   const calculateBoardSize = () => {
     if(!videoRef.current) return;
@@ -120,7 +115,8 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   // Expose calculateBoardSize to parent component
   useImperativeHandle(ref, () => ({
     calculateBoardSize,
-    calculateOffset
+    calculateOffset,
+    setChessboardContours
   }));
 
   const createCheckpoint = (timestamp: number) => {
@@ -323,9 +319,11 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               />
             ) : null}
             
-            {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ? (
+            {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && 
+             (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 && 
+             chessboardContours ? (
               <InteractiveChessboard 
-                  chessboardData={chessboardData}
+                  chessboardContours={chessboardContours}
                   originalDataBounds={{x_min: 0, y_min: 0, x_max: 1289, y_max: 663}}
                   boundingBox={videoBoundingBox}
               />

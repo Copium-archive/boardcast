@@ -23,6 +23,15 @@ interface AppContextType {
   EvalCache: React.RefObject<{ [key: string]: { evaluation: number | string | null; bestMove: string | null } }>;
 }
 
+type Point = [number, number];
+
+interface ChessboardContours {
+  'top-left': Point[];
+  'top-right': Point[];
+  'bottom-right': Point[];
+  'bottom-left': Point[];
+}
+
 export const AppContext = React.createContext<AppContextType>({
   timestamps: [],
   setTimestamps: () => {},
@@ -194,18 +203,22 @@ useEffect(() => {
     setFenQueue(positionsToEvaluate);
   };
 
-  const handleSegmentation = async () => {
-    const result = await invoke("run_python_script", {
-      script: "segmentation.py",
-      cliArgs: [],
-      osEnv: "Windows",
-      jsonOutput: true
-    });
+const handleSegmentation = async () => {
+  console.log("Running segmentation script...");
+  const result = await invoke("run_python_script", {
+    script: "segmentation.py",
+    cliArgs: [],
+    osEnv: "Windows",
+    jsonOutput: true
+  });
 
-    console.log("Python script output:", result);
-    console.log("result type", typeof result);
-    console.log("Is object:", typeof result === 'object');
+  console.log("Python script output:", result);
+
+  // Set chessboard contours using the VideoContainer ref
+  if (videoContainerRef.current && result) {
+    videoContainerRef.current.setChessboardContours(result as ChessboardContours); // Cast to expected type if you are sure of the structure
   }
+}
 
   return (
     <div className="w-full h-screen flex flex-col bg-muted p-2 gap-0">
