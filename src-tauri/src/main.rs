@@ -3,6 +3,7 @@
 
 use std::process::Command;
 use tauri::command;
+use serde_json;
 
 // Import and initialize Tauri Dialog plugin (v2)
 use tauri_plugin_dialog::init as dialog_init;
@@ -23,18 +24,31 @@ impl Default for OsEnvironment {
 fn run_python_script(
     script: String, 
     cli_args: Vec<String>,
-    os_env: Option<OsEnvironment>
-) -> Result<String, String> {
+    os_env: Option<OsEnvironment>,
+    json_output: Option<bool>
+) -> Result<serde_json::Value, String> {
     let os_env = os_env.unwrap_or_default();
+    let json_output = json_output.unwrap_or(false);
     
     // Validate script name
     if !script.ends_with(".py") || script.contains('/') || script.contains('\\') {
         return Err("Invalid script name.".to_string());
     }
 
-    match os_env {
-        OsEnvironment::Windows => run_windows_script(script, cli_args),
-        OsEnvironment::Wsl => run_wsl_script(script, cli_args),
+    let output = match os_env {
+        OsEnvironment::Windows => run_windows_script(script, cli_args)?,
+        OsEnvironment::Wsl => run_wsl_script(script, cli_args)?,
+    };
+
+    // If json_output is true, try to parse the output as JSON
+    if json_output {
+        match serde_json::from_str(&output) {
+            Ok(json_value) => Ok(json_value),
+            Err(e) => Err(format!("Failed to parse JSON output: {}", e)),
+        }
+    } else {
+        // Return the raw string output wrapped in a JSON string value
+        Ok(serde_json::Value::String(output))
     }
 }
 

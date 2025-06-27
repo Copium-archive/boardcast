@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+import json
 
 square_size = 1000
 
@@ -47,7 +48,13 @@ def apply_inverse_perspective_transform(corners, perspective_matrix):
     return result
 
 def chessboard_segmentation(perspective_matrix):
-    """Generate all chess squares and mark them on the original image."""
+    """Generate all chess squares, mark them, and save their corners to a JSON file."""
+    squares = {
+        "top-left": [],
+        "top-right": [],
+        "bottom-right": [],
+        "bottom-left": []
+    }
     for row in range(8):
         for col in range(8):
             min_x = col * square_size
@@ -63,9 +70,17 @@ def chessboard_segmentation(perspective_matrix):
             # Transform back to original image coordinates
             image_corners = apply_inverse_perspective_transform(board_corners, perspective_matrix)
             
+            # Save corners to the corresponding lists
+            squares["top-left"].append(list(image_corners[0]))
+            squares["top-right"].append(list(image_corners[1]))
+            squares["bottom-right"].append(list(image_corners[2]))
+            squares["bottom-left"].append(list(image_corners[3]))
+            
             output_filename = f'square_{row}_{col}.png'
             mark_and_label_points('chess_match.png', image_corners, output_filename=output_filename)
-            print(f"Square {row},{col}: {image_corners}")
+
+    # Save all squares to JSON
+    print(json.dumps(squares))
 
 def mark_and_label_points(image_path, points, output_dir='./test_result', output_filename='background.png'):
     """Mark points on the image with circles, lines, and labels."""
@@ -95,7 +110,6 @@ def mark_and_label_points(image_path, points, output_dir='./test_result', output
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, output_filename)
     cv2.imwrite(output_path, background)
-    print(f"Saved marked and labeled image to: {output_path}")
 
 def order_points(pts):
     """Order points in the correct sequence: top-left, top-right, bottom-right, bottom-left."""
@@ -117,7 +131,6 @@ if __name__ == "__main__":
     
     # Order the points correctly
     ordered_points = order_points(points)
-    print(f"Ordered points: {ordered_points}")
     
     # Mark the original corner points
     mark_and_label_points('chess_match.png', ordered_points, output_filename='contour.png')

@@ -31,5 +31,4 @@ This way, we only need to run the script once, and users will interact with the 
 
 To do : 
 (3) set up primitive front-end entry point : 
-- a button for running the script
-- log the result to console
+- fetch the output and convert them to clickable elements
