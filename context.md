@@ -28,3 +28,8 @@ So I want to propose another approach :
 - In the front-end, we'll fetch the list and turns them into clickable elements with id = {the square's label}. These elements aren't rectangular like traditional web UI components, so we'd have to work around that 
 
 This way, we only need to run the script once, and users will interact with the frontend for the rest of the time
+
+To do : 
+(3) set up primitive front-end entry point : 
+- a button for running the script
+- log the result to console
