@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke, convertFileSrc} from '@tauri-apps/api/core';
 import { writeTextFile} from '@tauri-apps/plugin-fs';
@@ -21,15 +22,8 @@ interface AppContextType {
   currentMoveIndex: number;
   setCurrentMoveIndex: React.Dispatch<React.SetStateAction<number>>;
   EvalCache: React.RefObject<{ [key: string]: { evaluation: number | string | null; bestMove: string | null } }>;
-}
-
-type Point = [number, number];
-
-interface ChessboardContours {
-  'top-left': Point[];
-  'top-right': Point[];
-  'bottom-right': Point[];
-  'bottom-left': Point[];
+  isEditingContour: boolean;
+  setIsEditingContour: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -41,7 +35,9 @@ export const AppContext = React.createContext<AppContextType>({
   setPositions: () => {},
   currentMoveIndex: 0,
   setCurrentMoveIndex: () => {},
-  EvalCache: { current: {} }
+  EvalCache: { current: {} },
+  isEditingContour: false,
+  setIsEditingContour: () => {},
 });
 
 function App() {
@@ -66,6 +62,8 @@ function App() {
   
   // Add ref for VideoContainer
   const videoContainerRef = useRef<VideoContainerRef>(null);
+
+  const [isEditingContour, setIsEditingContour] = useState(false);
   
   // Monitor evaluation progress
   useEffect(() => {
@@ -203,23 +201,6 @@ useEffect(() => {
     setFenQueue(positionsToEvaluate);
   };
 
-const handleSegmentation = async () => {
-  console.log("Running segmentation script...");
-  const result = await invoke("run_python_script", {
-    script: "segmentation.py",
-    cliArgs: [],
-    osEnv: "Windows",
-    jsonOutput: true
-  });
-
-  console.log("Python script output:", result);
-
-  // Set chessboard contours using the VideoContainer ref
-  if (videoContainerRef.current && result) {
-    videoContainerRef.current.setChessboardContours(result as ChessboardContours); // Cast to expected type if you are sure of the structure
-  }
-}
-
   return (
     <div className="w-full h-screen flex flex-col bg-muted p-2 gap-0">
       <div className="flex flex-1 gap-2">
@@ -228,7 +209,9 @@ const handleSegmentation = async () => {
           currentMoveIndex, setCurrentMoveIndex, 
           moves, setMoves, 
           positions, setPositions,
-          EvalCache
+          EvalCache,
+          isEditingContour,
+          setIsEditingContour,
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">
@@ -241,7 +224,14 @@ const handleSegmentation = async () => {
               >
                 {isExporting ? 'Exporting...' : 'Export'}
               </Button>
-              <Button onClick={handleSegmentation} variant={"destructive"}>Segmentation</Button>
+              <Button 
+                onClick={() => setIsEditingContour(!isEditingContour)} 
+                variant="outline"
+                disabled={isExporting}
+              >
+                {isEditingContour ? <Trash2 className="h-4 w-4" /> : 'Edit'}
+              </Button>
+
             </div>
             <VideoContainer ref={videoContainerRef} videoPath={videoPath} />
           </Card>

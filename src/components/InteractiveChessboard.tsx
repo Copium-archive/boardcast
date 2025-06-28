@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
-// ... (interfaces remain the same) ...
 type Point = [number, number];
 
 interface ChessboardContours {
@@ -32,19 +32,44 @@ interface BoundingBox {
 }
 
 interface InteractiveChessboardProps {
-  chessboardContours: ChessboardContours;
   originalDataBounds: BoundingBox;
   boundingBox: BoundingBox;
   editing: boolean;
 }
 
 const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
-    chessboardContours,
     originalDataBounds,
     boundingBox,
     editing,
 }) => {
+    const [chessboardContours, setChessboardContours] = useState<ChessboardContours>({
+        'top-left': [],
+        'top-right': [],
+        'bottom-right': [],
+        'bottom-left': []
+    });
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
+    const [editingPoints, setEditingPoints] = useState<Point[]>([]);
+
+useEffect(() => {
+    const runScript = async () => {
+        const corners = editingPoints.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`);
+        const result = await invoke('run_python_script', {
+            script: 'segmentation.py', 
+            cliArgs: corners,
+            osEnv: 'Windows', // or 'Wsl' depending on your setup
+            jsonOutput: true // This will parse the JSON output from the Python script
+        });
+
+        setChessboardContours(result as ChessboardContours); // Cast to expected type if you are sure of the structure
+    };
+    if(editingPoints.length >= 4) {
+        if(editingPoints.length === 4) {
+            runScript();
+        }
+        setEditingPoints([]);
+    }
+}, [editingPoints]);
 
     const indexToChessNotation = (index: number): string => {
         const col = index % 8;
@@ -54,40 +79,61 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         return `${file}${rank}`;
     };
 
-    // REFACTORED useMemo hook
-    const { squares, viewBox } = useMemo(() => {
-        // 1. Define the viewBox directly from the original data's bounds.
-        // This tells the SVG what its internal coordinate system is.
+    const { squares, viewBox, viewBoxRect } = useMemo(() => {
+        // --- STEP 1: Calculate the viewBox based on the bounds props. ---
+        // This is independent of the number of squares.
         const { x_min, y_min, x_max, y_max } = originalDataBounds;
         const width = x_max - x_min;
         const height = y_max - y_min;
-        
-        if (width === 0 || height === 0) {
-            return { squares: [], viewBox: '0 0 0 0' };
+
+        // If the bounds are invalid, return a completely empty state.
+        if (!originalDataBounds || width <= 0 || height <= 0) {
+            return {
+                squares: [],
+                viewBox: '0 0 0 0',
+                viewBoxRect: { x: 0, y: 0, width: 0, height: 0 }
+            };
         }
 
         const calculatedViewBox = `${x_min} ${y_min} ${width} ${height}`;
+        const calculatedViewBoxRect = { x: x_min, y: y_min, width, height };
 
+        // --- STEP 2: Dynamically determine the number of squares to process. ---
         const tl = chessboardContours['top-left'];
         const tr = chessboardContours['top-right'];
         const bl = chessboardContours['bottom-left'];
         const br = chessboardContours['bottom-right'];
 
-        // 2. Process squares without any transformation.
-        // The points are now in the same coordinate system as the viewBox,
-        // so we can use them directly.
-        const processedSquares: ProcessedSquare[] = Array.from({ length: 64 }).map((_, i) => {
+        // Find the number of squares we can safely create. This is the minimum
+        // length of all the contour arrays. If any are missing or empty, this will be 0.
+        const numSquares = Math.min(
+            tl?.length || 0,
+            tr?.length || 0,
+            bl?.length || 0,
+            br?.length || 0
+        );
+
+        // --- STEP 3: Loop based on the dynamic number of squares. ---
+        // If numSquares is 0, this will correctly create an empty array.
+        const processedSquares: ProcessedSquare[] = Array.from({ length: numSquares }).map((_, i) => {
+            // This code is now safe. We are guaranteed that tl[i], tr[i], etc., all exist
+            // because we're only looping up to the minimum length.
             const points: SquarePoints = { tl: tl[i], tr: tr[i], br: br[i], bl: bl[i] };
             return {
                 id: i,
                 notation: indexToChessNotation(i),
-                points: points, // No more transformation needed!
+                points: points,
                 pointsString: `${points.tl.join(',')} ${points.tr.join(',')} ${points.br.join(',')} ${points.bl.join(',')}`,
             };
         });
-        
-        return { squares: processedSquares, viewBox: calculatedViewBox };
-    }, [chessboardContours, originalDataBounds]); // Dependency on `boundingBox` is removed
+
+        // --- STEP 4: Return the calculated viewBox and the dynamically generated squares. ---
+        return {
+            squares: processedSquares,
+            viewBox: calculatedViewBox,
+            viewBoxRect: calculatedViewBoxRect
+        };
+    }, [chessboardContours, originalDataBounds]);
 
     const handleSquareClick = (square: ProcessedSquare) => {
         if (!editing) {
@@ -95,33 +141,29 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         }
     };
 
-    // Handle SVG canvas clicks in editing mode
     const handleSvgClick = (event: React.MouseEvent<SVGSVGElement>) => {
         if (!editing) return;
 
         const svg = event.currentTarget;
         const rect = svg.getBoundingClientRect();
         
-        // Get click position relative to the SVG element
         const clickX = event.clientX - rect.left;
         const clickY = event.clientY - rect.top;
         
-        // Convert to viewBox coordinates
         const svgWidth = rect.width;
         const svgHeight = rect.height;
-        const { x_min, y_min } = originalDataBounds;
-        const viewBoxWidth = originalDataBounds.x_max - originalDataBounds.x_min;
-        const viewBoxHeight = originalDataBounds.y_max - originalDataBounds.y_min;
+        const { x, y, width, height } = viewBoxRect;
         
-        const viewBoxX = x_min + (clickX / svgWidth) * viewBoxWidth;
-        const viewBoxY = y_min + (clickY / svgHeight) * viewBoxHeight;
+        const viewBoxX = x + (clickX / svgWidth) * width;
+        const viewBoxY = y + (clickY / svgHeight) * height;
         
-        console.log(`ViewBox coordinates: (${viewBoxX.toFixed(2)}, ${viewBoxY.toFixed(2)})`);
+        // Add the point to the editing points array
+        const newPoint: Point = [viewBoxX, viewBoxY];
+        setEditingPoints(prev => [...prev, newPoint]);
+        
+        console.log(`Added point at ViewBox coordinates: (${viewBoxX.toFixed(2)}, ${viewBoxY.toFixed(2)})`);
     };
 
-    // 3. Use the boundingBox to style the <svg> element itself.
-    // This positions and sizes the SVG on the page. The browser will handle
-    // fitting the `viewBox` content inside these dimensions.
     const svgStyle: React.CSSProperties = {
         position: 'fixed',
         left: `${boundingBox.x_min}px`,
@@ -150,17 +192,34 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                             stroke={selectedSquare?.id === square.id ? 'yellow' : 'red'}
                             strokeWidth={selectedSquare?.id === square.id ? 4 : 1}
                             onClick={(e) => {
-                                e.stopPropagation(); // Prevent SVG click handler from firing
+                                e.stopPropagation();
                                 handleSquareClick(square);
                             }}
                             className="cursor-pointer"
                             style={{ 
                                 pointerEvents: editing ? 'none' : 'auto',
-                                cursor: editing ? 'crosshair' : 'pointer'
+                                cursor: editing ? 'crosshair' : 'pointer',
+                                // This makes the stroke width appear constant even if the SVG scales
+                                vectorEffect: "non-scaling-stroke",
                             }}
                         />
                     ))}
                 </g>
+                
+                {/* Render editing points */}
+                {editing && editingPoints.map((point, index) => (
+                    <circle
+                        key={index}
+                        cx={point[0]}
+                        cy={point[1]}
+                        r={3}
+                        fill="red"
+                        stroke="red"
+                        strokeWidth={1}
+                        vectorEffect="non-scaling-stroke"
+                        style={{ pointerEvents: 'none' }}
+                    />
+                ))}
             </svg>
         </>
     );

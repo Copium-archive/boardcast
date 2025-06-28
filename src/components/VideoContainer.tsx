@@ -4,15 +4,6 @@ import { AppContext } from "@/App";
 import DynamicChessOverlay from "./DynamicChessOverlay";
 import InteractiveChessboard from "./InteractiveChessboard";
 
-type Point = [number, number];
-
-interface ChessboardContours {
-  'top-left': Point[];
-  'top-right': Point[];
-  'bottom-right': Point[];
-  'bottom-left': Point[];
-}
-
 interface Offset {
     x_offsetRatio: number;
     y_offsetRatio: number;
@@ -44,7 +35,6 @@ interface BoundingBox {
 export interface VideoContainerRef {
   calculateBoardSize: () => number | undefined;
   calculateOffset: () => Coordinate | undefined;
-  setChessboardContours: React.Dispatch<React.SetStateAction<ChessboardContours | null>>;
 }
 
 interface VideoContextType {
@@ -76,7 +66,7 @@ export const VideoContext = React.createContext<VideoContextType>({
 });
 
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
-  const { positions, currentMoveIndex, setTimestamps} = React.useContext(AppContext);
+  const { positions, currentMoveIndex, setTimestamps, isEditingContour} = React.useContext(AppContext);
   const [corner, setCorner] = useState<Offset>({ x_offsetRatio: 0, y_offsetRatio: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
@@ -94,7 +84,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   const [currentOverlayId, setCurrentOverlayId] = useState<number>(0);
   const [checkpoints, setCheckpoints] = useState<number[]>([]);
   const [sizeRatio, setSizeRatio] = useState(0.8);
-  const [chessboardContours, setChessboardContours] = useState<ChessboardContours | null>(null);
 
   const calculateBoardSize = () => {
     if(!videoRef.current) return;
@@ -116,7 +105,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   useImperativeHandle(ref, () => ({
     calculateBoardSize,
     calculateOffset,
-    setChessboardContours
   }));
 
   const createCheckpoint = (timestamp: number) => {
@@ -320,13 +308,12 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
             ) : null}
             
             {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && 
-             (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 && 
-             chessboardContours ? (
+             (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ?
+              (
               <InteractiveChessboard 
-                  chessboardContours={chessboardContours}
                   originalDataBounds={{x_min: 0, y_min: 0, x_max: 1289, y_max: 663}}
                   boundingBox={videoBoundingBox}
-                  editing={true}
+                  editing={isEditingContour}
               />
             ) : null}
             

@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 import json
+import argparse
 
 square_size = 1000
 
@@ -124,19 +125,50 @@ def order_points(pts):
     # Return in order: top-left, top-right, bottom-right, bottom-left
     return [top_pts[0], top_pts[1], bottom_pts[1], bottom_pts[0]]
 
+def parse_corners(corner_strings):
+    """Parse corner coordinates from command line arguments."""
+    corners = []
+    for corner_str in corner_strings:
+        try:
+            # Remove parentheses and split by comma
+            coords = corner_str.strip('()').split(',')
+            if len(coords) != 2:
+                raise ValueError(f"Invalid corner format: {corner_str}")
+            x, y = int(coords[0].strip()), int(coords[1].strip())
+            corners.append((x, y))
+        except ValueError as e:
+            raise ValueError(f"Error parsing corner '{corner_str}': {e}")
+    return corners
+
 # Main execution
 if __name__ == "__main__":
-    # Your corner points - make sure they're in the correct order
-    points = [(449, 360), (775, 361), (805, 637), (378, 638)]
+    parser = argparse.ArgumentParser(description='Chess board segmentation with perspective correction')
+    parser.add_argument('corners', nargs=4, help='Four corner points in format: x1,y1 x2,y2 x3,y3 x4,y4')
+    parser.add_argument('--image', default='chess_match.png', help='Input image path (default: chess_match.png)')
     
-    # Order the points correctly
-    ordered_points = order_points(points)
+    args = parser.parse_args()
     
-    # Mark the original corner points
-    # mark_and_label_points('chess_match.png', ordered_points, output_filename='contour.png')
-    
-    # Get perspective transformation matrix
-    perspective_matrix = get_matrix(ordered_points)
-    
-    # Generate all chess squares
-    chessboard_segmentation(perspective_matrix)
+    try:
+        # Parse corner points from command line arguments
+        points = parse_corners(args.corners)
+        
+        if len(points) != 4:
+            raise ValueError("Exactly 4 corner points are required")
+        
+        # Order the points correctly
+        ordered_points = order_points(points)
+        
+        # Mark the original corner points if requested
+        # mark_and_label_points(args.image, ordered_points, output_filename='contour.png')
+        
+        # Get perspective transformation matrix
+        perspective_matrix = get_matrix(ordered_points)
+        
+        # Generate all chess squares
+        chessboard_segmentation(perspective_matrix)
+        
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+# points = [(449, 360), (775, 361), (805, 637), (378, 638)]
