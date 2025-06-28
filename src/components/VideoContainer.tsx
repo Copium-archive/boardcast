@@ -123,8 +123,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
       return updated;
     });
   };
-  
-
 
   // Function to update video bounding box
   const updateVideoBoundingBox = () => {

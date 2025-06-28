@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, Loader2 } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke, convertFileSrc} from '@tauri-apps/api/core';
 import { writeTextFile} from '@tauri-apps/plugin-fs';
@@ -24,6 +24,8 @@ interface AppContextType {
   EvalCache: React.RefObject<{ [key: string]: { evaluation: number | string | null; bestMove: string | null } }>;
   isEditingContour: boolean;
   setIsEditingContour: React.Dispatch<React.SetStateAction<boolean>>;
+  executingSegmentation: boolean;
+  setExecutingSegmentation: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -38,6 +40,8 @@ export const AppContext = React.createContext<AppContextType>({
   EvalCache: { current: {} },
   isEditingContour: false,
   setIsEditingContour: () => {},
+  executingSegmentation: false,
+  setExecutingSegmentation: () => {},
 });
 
 function App() {
@@ -64,6 +68,7 @@ function App() {
   const videoContainerRef = useRef<VideoContainerRef>(null);
 
   const [isEditingContour, setIsEditingContour] = useState(false);
+  const [executingSegmentation, setExecutingSegmentation] = useState(false);
   
   // Monitor evaluation progress
   useEffect(() => {
@@ -210,8 +215,8 @@ useEffect(() => {
           moves, setMoves, 
           positions, setPositions,
           EvalCache,
-          isEditingContour,
-          setIsEditingContour,
+          isEditingContour, setIsEditingContour,
+          executingSegmentation, setExecutingSegmentation
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">
@@ -227,11 +232,19 @@ useEffect(() => {
               <Button 
                 onClick={() => setIsEditingContour(!isEditingContour)} 
                 variant="outline"
-                disabled={isExporting}
+                disabled={executingSegmentation}
               >
-                {isEditingContour ? <Trash2 className="h-4 w-4" /> : 'Edit'}
+                {executingSegmentation ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    {isEditingContour ? <Trash2 className="h-4 w-4" /> : 'Edit'}
+                  </>
+                )}
               </Button>
-
             </div>
             <VideoContainer ref={videoContainerRef} videoPath={videoPath} />
           </Card>

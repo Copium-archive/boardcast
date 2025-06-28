@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useContext } from 'react';
+import { AppContext } from '@/App';
 import { invoke } from '@tauri-apps/api/core';
 
 type Point = [number, number];
@@ -42,6 +43,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     boundingBox,
     editing,
 }) => {
+    const { isEditingContour, setIsEditingContour, setExecutingSegmentation} = useContext(AppContext);
     const [chessboardContours, setChessboardContours] = useState<ChessboardContours>({
         'top-left': [],
         'top-right': [],
@@ -51,25 +53,37 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
     const [editingPoints, setEditingPoints] = useState<Point[]>([]);
 
-useEffect(() => {
-    const runScript = async () => {
-        const corners = editingPoints.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`);
-        const result = await invoke('run_python_script', {
-            script: 'segmentation.py', 
-            cliArgs: corners,
-            osEnv: 'Windows', // or 'Wsl' depending on your setup
-            jsonOutput: true // This will parse the JSON output from the Python script
-        });
+    useEffect(() => {
+        if(editingPoints.length >= 4) {
+            setIsEditingContour(false);
+            setExecutingSegmentation(true);
+        }
+    }, [editingPoints]);
+        
+    useEffect(() => {
+        const runScript = async () => {
+            if(editingPoints.length < 4) {
+                setEditingPoints([]); 
+                setExecutingSegmentation(false);
+                return;
+            }
+            const corners = editingPoints.slice(0, 4).map(([x, y]) => `${Math.round(x)},${Math.round(y)}`);
+            const result = await invoke('run_python_script', {
+                script: 'segmentation.py', 
+                cliArgs: corners,
+                osEnv: 'Windows', // or 'Wsl' depending on your setup
+                jsonOutput: true // This will parse the JSON output from the Python script
+            });
 
-        setChessboardContours(result as ChessboardContours); // Cast to expected type if you are sure of the structure
-    };
-    if(editingPoints.length >= 4) {
-        if(editingPoints.length === 4) {
+            setChessboardContours(result as ChessboardContours); 
+            setEditingPoints([]); 
+            setExecutingSegmentation(false);
+        };
+
+        if(isEditingContour === false) {
             runScript();
         }
-        setEditingPoints([]);
-    }
-}, [editingPoints]);
+    }, [isEditingContour]);
 
     const indexToChessNotation = (index: number): string => {
         const col = index % 8;
@@ -184,7 +198,7 @@ useEffect(() => {
                 onClick={handleSvgClick}
             >
                 <g>
-                    {squares.map((square) => (
+                    {!isEditingContour && squares.map((square) => (
                         <polygon
                             key={square.id}
                             points={square.pointsString}
@@ -199,15 +213,13 @@ useEffect(() => {
                             style={{ 
                                 pointerEvents: editing ? 'none' : 'auto',
                                 cursor: editing ? 'crosshair' : 'pointer',
-                                // This makes the stroke width appear constant even if the SVG scales
                                 vectorEffect: "non-scaling-stroke",
                             }}
                         />
                     ))}
                 </g>
                 
-                {/* Render editing points */}
-                {editing && editingPoints.map((point, index) => (
+                {editingPoints.map((point, index) => (
                     <circle
                         key={index}
                         cx={point[0]}
