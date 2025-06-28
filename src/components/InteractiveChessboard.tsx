@@ -35,12 +35,14 @@ interface InteractiveChessboardProps {
   chessboardContours: ChessboardContours;
   originalDataBounds: BoundingBox;
   boundingBox: BoundingBox;
+  editing: boolean;
 }
 
 const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     chessboardContours,
     originalDataBounds,
     boundingBox,
+    editing,
 }) => {
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
 
@@ -52,86 +54,112 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         return `${file}${rank}`;
     };
 
+    // REFACTORED useMemo hook
     const { squares, viewBox } = useMemo(() => {
-        const { x_min: minX, y_min: minY, x_max: maxX, y_max: maxY } = originalDataBounds;
-        const originalWidth = maxX - minX;
-        const originalHeight = maxY - minY;
-        const newWidth = boundingBox.x_max - boundingBox.x_min;
-        const newHeight = boundingBox.y_max - boundingBox.y_min;
-
-        if (originalWidth === 0 || originalHeight === 0) {
+        // 1. Define the viewBox directly from the original data's bounds.
+        // This tells the SVG what its internal coordinate system is.
+        const { x_min, y_min, x_max, y_max } = originalDataBounds;
+        const width = x_max - x_min;
+        const height = y_max - y_min;
+        
+        if (width === 0 || height === 0) {
             return { squares: [], viewBox: '0 0 0 0' };
         }
 
-        const scaleX = newWidth / originalWidth;
-        const scaleY = newHeight / originalHeight;
-        const uniformScale = Math.min(scaleX, scaleY);
-        const finalBoardWidth = originalWidth * uniformScale;
-        const finalBoardHeight = originalHeight * uniformScale;
-        const offsetX = boundingBox.x_min + (newWidth - finalBoardWidth) / 2;
-        const offsetY = boundingBox.y_min + (newHeight - finalBoardHeight) / 2;
+        const calculatedViewBox = `${x_min} ${y_min} ${width} ${height}`;
 
         const tl = chessboardContours['top-left'];
         const tr = chessboardContours['top-right'];
-        const br = chessboardContours['bottom-right'];
         const bl = chessboardContours['bottom-left'];
+        const br = chessboardContours['bottom-right'];
 
+        // 2. Process squares without any transformation.
+        // The points are now in the same coordinate system as the viewBox,
+        // so we can use them directly.
         const processedSquares: ProcessedSquare[] = Array.from({ length: 64 }).map((_, i) => {
-            const originalPoints: SquarePoints = { tl: tl[i], tr: tr[i], br: br[i], bl: bl[i] };
-            const transform = (point: Point): Point => {
-                const [x, y] = point;
-                const relativeX = x - minX;
-                const relativeY = y - minY;
-                const scaledX = relativeX * uniformScale;
-                const scaledY = relativeY * uniformScale;
-                const finalX = offsetX + scaledX;
-                const finalY = offsetY + scaledY;
-                return [finalX, finalY];
-            };
-            const transformedPoints: SquarePoints = {
-                tl: transform(originalPoints.tl),
-                tr: transform(originalPoints.tr),
-                br: transform(originalPoints.br),
-                bl: transform(originalPoints.bl)
-            };
+            const points: SquarePoints = { tl: tl[i], tr: tr[i], br: br[i], bl: bl[i] };
             return {
                 id: i,
                 notation: indexToChessNotation(i),
-                points: transformedPoints,
-                pointsString: `${transformedPoints.tl.join(',')} ${transformedPoints.tr.join(',')} ${transformedPoints.br.join(',')} ${transformedPoints.bl.join(',')}`,
+                points: points, // No more transformation needed!
+                pointsString: `${points.tl.join(',')} ${points.tr.join(',')} ${points.br.join(',')} ${points.bl.join(',')}`,
             };
         });
         
-        const dynamicViewBox = `0 0 ${window.innerWidth} ${window.innerHeight}`;
-        return { squares: processedSquares, viewBox: dynamicViewBox };
-    }, [boundingBox, chessboardContours, originalDataBounds]); 
+        return { squares: processedSquares, viewBox: calculatedViewBox };
+    }, [chessboardContours, originalDataBounds]); // Dependency on `boundingBox` is removed
 
     const handleSquareClick = (square: ProcessedSquare) => {
-        setSelectedSquare(square);
+        if (!editing) {
+            setSelectedSquare(square);
+        }
+    };
+
+    // Handle SVG canvas clicks in editing mode
+    const handleSvgClick = (event: React.MouseEvent<SVGSVGElement>) => {
+        if (!editing) return;
+
+        const svg = event.currentTarget;
+        const rect = svg.getBoundingClientRect();
+        
+        // Get click position relative to the SVG element
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+        
+        // Convert to viewBox coordinates
+        const svgWidth = rect.width;
+        const svgHeight = rect.height;
+        const { x_min, y_min } = originalDataBounds;
+        const viewBoxWidth = originalDataBounds.x_max - originalDataBounds.x_min;
+        const viewBoxHeight = originalDataBounds.y_max - originalDataBounds.y_min;
+        
+        const viewBoxX = x_min + (clickX / svgWidth) * viewBoxWidth;
+        const viewBoxY = y_min + (clickY / svgHeight) * viewBoxHeight;
+        
+        console.log(`ViewBox coordinates: (${viewBoxX.toFixed(2)}, ${viewBoxY.toFixed(2)})`);
+    };
+
+    // 3. Use the boundingBox to style the <svg> element itself.
+    // This positions and sizes the SVG on the page. The browser will handle
+    // fitting the `viewBox` content inside these dimensions.
+    const svgStyle: React.CSSProperties = {
+        position: 'fixed',
+        left: `${boundingBox.x_min}px`,
+        top: `${boundingBox.y_min}px`,
+        width: `${boundingBox.x_max - boundingBox.x_min}px`,
+        height: `${boundingBox.y_max - boundingBox.y_min}px`,
+        pointerEvents: editing ? 'auto' : 'none',
+        zIndex: 1,
+        cursor: editing ? 'crosshair' : 'default',
     };
 
     return (
         <>
             <svg 
                 viewBox={viewBox} 
-                className="fixed top-0 left-0 w-full h-full pointer-events-none"
-                style={{ zIndex: 1 }}
+                style={svgStyle}
+                preserveAspectRatio="xMidYMid meet"
+                onClick={handleSvgClick}
             >
                 <g>
-                    {squares.map((square) => {
-                        return (
-                            <polygon
-                                key={square.id}
-                                points={square.pointsString}
-                                fill="transparent"
-                                stroke={selectedSquare?.id === square.id ? 'yellow' : 'red'}
-                                strokeWidth={selectedSquare?.id === square.id ? 4 : 1}
-                                onClick={() => handleSquareClick(square)}
-                                className="cursor-pointer"
-                                style={{ pointerEvents: 'auto' }} // Re-enable pointer events for clickable polygons
-                            />
-                        );
-                    })}
+                    {squares.map((square) => (
+                        <polygon
+                            key={square.id}
+                            points={square.pointsString}
+                            fill="transparent"
+                            stroke={selectedSquare?.id === square.id ? 'yellow' : 'red'}
+                            strokeWidth={selectedSquare?.id === square.id ? 4 : 1}
+                            onClick={(e) => {
+                                e.stopPropagation(); // Prevent SVG click handler from firing
+                                handleSquareClick(square);
+                            }}
+                            className="cursor-pointer"
+                            style={{ 
+                                pointerEvents: editing ? 'none' : 'auto',
+                                cursor: editing ? 'crosshair' : 'pointer'
+                            }}
+                        />
+                    ))}
                 </g>
             </svg>
         </>

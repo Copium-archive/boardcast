@@ -7,4 +7,3 @@
 To do : 
 
 - Build a chessboard contour selector, capture the result and send it to the segmentation script
-- Fix chessboard contour misalignment (most likely caused by the svg canvas)

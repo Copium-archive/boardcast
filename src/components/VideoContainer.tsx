@@ -326,6 +326,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
                   chessboardContours={chessboardContours}
                   originalDataBounds={{x_min: 0, y_min: 0, x_max: 1289, y_max: 663}}
                   boundingBox={videoBoundingBox}
+                  editing={true}
               />
             ) : null}
             
