@@ -62,7 +62,7 @@ function App() {
   // State for batch evaluation queue
   const [fenQueue, setFenQueue] = useState<string[]>([]);
   const { remaining } = useBatchEval({ fenQueue, setFenQueue, EvalCache});
-  const [videoPath, setVideoPath] = useState<string | null>("http://asset.localhost/C%3A%5CUsers%5CUser%5CDocuments%5Cboardcast%5Cpy-util%5Cstatic.mp4");
+  const [videoPath, setVideoPath] = useState<string | null>("http://asset.localhost/C%3A%5CUsers%5CUser%5CDownloads%5Cuhd_30fps.mp4");
   
   // Add ref for VideoContainer
   const videoContainerRef = useRef<VideoContainerRef>(null);

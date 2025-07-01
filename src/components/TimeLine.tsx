@@ -27,6 +27,7 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [checkpointIndex, setCheckpointIndex] = useState<number>(-1);
+  const [isAutoSkipEnabled, setIsAutoSkipEnabled] = useState(false);
   const leftCheckpointId = checkpointIndex;
   const rightCheckpointId = checkpointIndex + 1;
 
@@ -414,10 +415,31 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
     <TooltipProvider>
       <Card className={`w-full bg-background border-border ${!isEnabled ? 'opacity-70' : ''} rounded-tr-none rounded-tl-none p-0`}>
         <CardContent className="p-4 space-y-3">
-          {/* Timestamp display - Centered, minimal */}
-          <div className="flex justify-center items-center px-1 pb-2">
+          {/* Timestamp display with auto-skip toggle */}
+          <div className="flex justify-between items-center px-1 pb-2">
+            {/* Empty space for balance */}
+            <div></div>
+
+            {/* Timestamp display - Centered */}
             <div className="text-sm font-medium font-mono">
               {formatTime(isEnabled ? currentTime : 0)} / {formatTime(isEnabled ? duration : 0)}
+            </div>
+
+            {/* Auto-skip toggle - Right side */}
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsAutoSkipEnabled(!isAutoSkipEnabled)}>
+                    <span className="text-xs text-muted-foreground">Auto-skip</span>
+                    <div className={`w-10 h-5 rounded-full transition-colors duration-200 ${isAutoSkipEnabled ? 'bg-black' : 'bg-gray-300'} ${!isEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 mt-0.5 ${isAutoSkipEnabled ? 'translate-x-5.5' : 'translate-x-0.5'}`} />
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Auto-skip silence</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 

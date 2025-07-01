@@ -2,20 +2,35 @@
   "framePerMove": 5,
   "timePerMove": 0.2,
   "positions": [
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "rnbqkbnr/pppppppp/8/8/5P2/8/PPPPP1PP/RNBQKBNR b KQkq - 0 1",
+    "rnbqkbnr/ppp1pppp/8/3p4/5P2/8/PPPPP1PP/RNBQKBNR w KQkq - 0 2"
   ],
   "moves": [
-    null
+    null,
+    "f4",
+    "d5"
   ],
   "x_offset": 0,
   "y_offset": 0,
   "timestamps": [
-    null
+    0,
+    13.3,
+    26
   ],
+  "boardSize": 1728,
   "evaluations": [
     {
-      "evaluation": null,
-      "bestMove": null
+      "evaluation": 0.33,
+      "bestMove": "e2e4"
+    },
+    {
+      "evaluation": 0.23,
+      "bestMove": "g8f6"
+    },
+    {
+      "evaluation": -0.26,
+      "bestMove": "g1f3"
     }
   ]
 }
