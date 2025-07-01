@@ -8,6 +8,8 @@ import { useContext } from "react";
 import { VideoContext } from "./VideoContainer";
 import SettingsDialog from "./SettingsDialog";
 import CheckpointCarousel from "./CheckpointCarousel";
+import VideoSlider from "./VideoSlider";
+import { invoke } from "@tauri-apps/api/core";
 
 interface TimelineProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -27,9 +29,41 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [checkpointIndex, setCheckpointIndex] = useState<number>(-1);
-  const [isAutoSkipEnabled, setIsAutoSkipEnabled] = useState(false);
   const leftCheckpointId = checkpointIndex;
   const rightCheckpointId = checkpointIndex + 1;
+  
+  const [isAutoSkipEnabled, setIsAutoSkipEnabled] = useState(false);
+  const [autoSkipSegments, setAutoSkipSegments] = useState<{ start: number; end: number }[]>([{ start: -1, end: -1 }]);
+
+  useEffect(() => {
+    const runScript = async () => {
+      if (!isAutoSkipEnabled) return;
+
+      try {
+        const result = await invoke<string>("run_python_script", {
+          script: "sample_motion.py",
+          cliArgs: [],
+          osEnv: "Windows"
+        });
+        // Parse the result as JSON and set autoSkipSegments
+        // The result is expected to be a JSON string like: {"segments": [[0, 10], [15.0, 18], [23, 26]]}
+        const parsed = JSON.parse(result);
+        if (Array.isArray(parsed.segments)) {
+          setAutoSkipSegments(
+            parsed.segments.map(([start, end]: [number, number]) => ({ start, end }))
+          );
+        } else {
+          setAutoSkipSegments([]);
+        }
+        console.log("Auto-skip script output:", parsed);
+      } catch (error) {
+        console.error("Error running auto-skip script:", error);
+        setAutoSkipSegments([]);
+      }
+    };
+
+    runScript();
+  }, [isAutoSkipEnabled]);
 
   useEffect(() => {
     // Find the most recent checkpoint with timestamp <= currentTime
@@ -442,58 +476,17 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
               </Tooltip>
             </div>
           </div>
-
-          {/* <div className="w-100 h-100 bg-amber-700"></div> */}
-
           
-          {/* Progress slider with checkpoint markers */}
-            <div className="w-full relative">
-              <Slider
-                value={[currentTime / duration * 100]}
-                min={0}
-                max={100}
-                step={0.01}
-                onValueChange={seek}
-                className={`cursor-pointer ${!isEnabled ? 'pointer-events-none' : ''} no-thumb thick-slider`}
-                disabled={!isEnabled}
-              />
-
-              {/* Thin horizontal red checkpoint lines */}
-              {isEnabled && checkpoints.map((checkpoint) => {
-                const position = (checkpoint / duration) * 100;
-                return (
-                    <div
-                    key={checkpoint}
-                    className="absolute z-20"
-                    style={{
-                    left: `calc(${position}% - 1px)`,
-                    top: '0',
-                    width: '4px',
-                    height: '110%',
-                    background: 'linear-gradient(to bottom, #60a5fa 60%, #2563eb 100%)',
-                    boxShadow: '0 0 2px 1px #2563eb88',
-                    transition: 'background 0.2s, box-shadow 0.2s',
-                    }}
-                    >
-                    <div
-                    style={{
-                    position: 'absolute',
-                    top: '-7px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '10px',
-                    height: '10px',
-                    background: '#60a5fa',
-                    borderRadius: '50%',
-                    boxShadow: '0 0 2px 1px #2563eb88',
-                    border: '1px solid #fff',
-                    zIndex: 30,
-                    }}
-                    />
-                    </div>
-                );
-              })}
-            </div>
+          {/* Video Slider with checkpoint markers and detected segments */}
+          <VideoSlider 
+            currentTime={currentTime}
+            duration={duration}
+            checkpoints={checkpoints}
+            autoSkipSegments={autoSkipSegments}
+            isEnabled={isEnabled}
+            isAutoSkipEnabled={isAutoSkipEnabled}
+            onSeek={seek}
+          />
 
           {/* Checkpoint Carousel */}
           <CheckpointCarousel
