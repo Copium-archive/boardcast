@@ -23,7 +23,8 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
     currentTime, setCurrentTime, 
     isPlaying, setIsPlaying,
     checkpoints, setCheckpoints,
-    createCheckpoint
+    createCheckpoint,
+    ROI
   } = useContext(VideoContext);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [volume, setVolume] = useState(1);
@@ -37,12 +38,14 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
 
   useEffect(() => {
     const runScript = async () => {
-      if (!isAutoSkipEnabled) return;
-
+      if (ROI.length === 0) {
+        return;
+      }
       try {
+        console.log("region of interest", ROI)
         const result = await invoke<string>("run_python_script", {
-          script: "sample_motion.py",
-          cliArgs: [],
+          script: "motion.py",
+          cliArgs: ROI,
           osEnv: "Windows"
         });
         // Parse the result as JSON and set autoSkipSegments
@@ -63,7 +66,7 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
     };
 
     runScript();
-  }, [isAutoSkipEnabled]);
+  }, [ROI]);
 
   useEffect(() => {
     // Find the most recent checkpoint with timestamp <= currentTime

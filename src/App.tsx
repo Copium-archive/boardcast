@@ -62,7 +62,7 @@ function App() {
   // State for batch evaluation queue
   const [fenQueue, setFenQueue] = useState<string[]>([]);
   const { remaining } = useBatchEval({ fenQueue, setFenQueue, EvalCache});
-  const [videoPath, setVideoPath] = useState<string | null>("http://asset.localhost/C%3A%5CUsers%5CUser%5CDownloads%5C5532774-uhd_4096_2160_25fps.mp4");
+  const [videoPath, setVideoPath] = useState<string | null>("http://asset.localhost/C%3A%5CUsers%5CUser%5CDocuments%5Cboardcast%5Cpy-util%5Csample_motion_detection.mp4");
   // useEffect(() => {console.log(">> ", videoPath)}, [videoPath]);
   
   // Add ref for VideoContainer

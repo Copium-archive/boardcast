@@ -49,6 +49,8 @@ interface VideoContextType {
   setSizeRatio: React.Dispatch<React.SetStateAction<number>>;
   corner: Offset;
   setCorner: React.Dispatch<React.SetStateAction<Offset>>;
+  ROI: string[];
+  setROI: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 export const VideoContext = React.createContext<VideoContextType>({
@@ -62,7 +64,9 @@ export const VideoContext = React.createContext<VideoContextType>({
   sizeRatio: 0.8,
   setSizeRatio: () => {},
   corner: { x_offsetRatio: 0, y_offsetRatio: 0 },
-  setCorner: () => {}
+  setCorner: () => {},
+  ROI: [],
+  setROI: () => {},
 });
 
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
@@ -84,6 +88,8 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   const [currentOverlayId, setCurrentOverlayId] = useState<number>(0);
   const [checkpoints, setCheckpoints] = useState<number[]>([]);
   const [sizeRatio, setSizeRatio] = useState(0.8);
+
+  const [ROI, setROI] = useState<string[]>([]);
 
   const calculateBoardSize = () => {
     if(!videoRef.current) return;
@@ -292,7 +298,9 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         checkpoints, setCheckpoints,
         createCheckpoint, 
         sizeRatio, setSizeRatio,
-        corner, setCorner}}>
+        corner, setCorner,
+        ROI, setROI
+        }}>
         <div className="flex flex-col justify-center items-center w-full">
           <div className="w-full max-w-full aspect-video bg-black rounded-t-lg relative" onDoubleClick={handleOverlaying}>
             {overlays[currentOverlayId].fen && (videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ? (

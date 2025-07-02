@@ -1,201 +1,314 @@
+import os
 import cv2
 import numpy as np
-import os
+import json
+import argparse
 import sys
-import json # Import the json module
+
+def save_image_to_test_result(filename, image):
+    """Save an image to the test_result directory."""
+    output_dir = 'test_result'
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, filename)
+    cv2.imwrite(output_path, image)
+
+def parse_corners(corner_args):
+    """
+    Parse corner points from command line arguments.
+    
+    Args:
+        corner_args (list): List of strings in format 'x,y'
+        
+    Returns:
+        list: List of (x, y) tuples
+    """
+    points = []
+    for corner in corner_args:
+        try:
+            x, y = corner.split(',')
+            points.append((int(x), int(y)))
+        except ValueError:
+            raise ValueError(f"Invalid corner format: {corner}. Expected format: x,y")
+    return points
 
 def order_points(pts):
-    """Sorts points in top-left, top-right, bottom-right, bottom-left order."""
-    # sort the points based on their y-coordinates
-    pts = sorted(pts, key=lambda x: x[1])
-    # grab the top-most and bottom-most points
-    top_pts = sorted(pts[:2], key=lambda x: x[0])  
-    bottom_pts = sorted(pts[2:], key=lambda x: x[0])  
-    # return the ordered coordinates
-    return [top_pts[0], top_pts[1], bottom_pts[1], bottom_pts[0]]
+    y_sorted = sorted(pts, key=lambda x: x[1])
+    top_pts = sorted(y_sorted[:2], key=lambda x: x[0])
+    bottom_pts = sorted(y_sorted[2:], key=lambda x: x[0], reverse=True)
+    return [top_pts[0], top_pts[1], bottom_pts[0], bottom_pts[1]]
 
-def visualize_roi(video_path: str, roi_corners: list, output_dir: str = "test_result", 
-                  output_filename: str = "motion_detection_region.png") -> bool:
+def create_roi_mask(frame_shape, roi_corners):
+    mask = np.zeros((frame_shape[0], frame_shape[1]), dtype=np.uint8)
+    ordered_points = order_points(roi_corners)
+    pts = np.array(ordered_points, np.int32).reshape((-1, 1, 2))
+    cv2.fillPoly(mask, [pts], 255)
+    return mask
+
+def visualize_roi(frame, roi_corners, save_path=None):
     """
-    Creates a visualization of the ROI overlay on the first frame of the video.
+    Visualize the ROI on a frame and optionally save it.
     
     Args:
-        video_path (str): Path to the input video file.
-        roi_corners (list): A list of four (x, y) tuples defining the region of interest.
-        output_dir (str): Directory to save the visualization image.
-        output_filename (str): Name of the output image file.
-    
+        frame (numpy.ndarray): Input frame
+        roi_corners (list): List of 4 (x, y) tuples defining ROI corners
+        save_path (str, optional): Path to save the visualization
+        
     Returns:
-        bool: True if visualization was created successfully, False otherwise.
+        numpy.ndarray: Frame with ROI visualization
     """
-    print("Generating ROI visualization...")
+    frame_with_roi = frame.copy()
+    ordered_points = order_points(roi_corners)
+    pts = np.array(ordered_points, np.int32).reshape((-1, 1, 2))
+    cv2.polylines(frame_with_roi, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
     
-    # Create the output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
+    if save_path:
+        try:
+            save_image_to_test_result(save_path, frame_with_roi)
+        except Exception as e:
+            print(f"Warning: Could not save ROI visualization. Error: {e}")
     
-    # Open the video to capture the first frame
+    return frame_with_roi
+
+def get_video_properties(video_path):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print(f"Error: Could not open video file at {video_path} for visualization.")
-        return False
+        raise ValueError(f"Could not open video file: {video_path}")
     
-    ret, first_frame = cap.read()
-    cap.release()
-    
-    if not ret:
-        print("Error: Could not read the first frame from the video for visualization.")
-        return False
-    
-    # Draw the ROI polygon on the first frame
-    roi_poly = np.array([order_points(roi_corners)], dtype=np.int32)
-    cv2.polylines(first_frame, roi_poly, isClosed=True, color=(0, 255, 0), thickness=3)
-    
-    # Add a text label for clarity
-    label_pos = (roi_poly[0][0][0], roi_poly[0][0][1] - 10)
-    cv2.putText(first_frame, "Region of Interest", label_pos, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-    
-    # Save the resulting image
-    output_path = os.path.join(output_dir, output_filename)
-    success = cv2.imwrite(output_path, first_frame)
-    
-    if success:
-        print(f"Snapshot with ROI overlay saved to: {output_path}")
-        return True
-    else:
-        print(f"Error: Failed to save visualization to {output_path}")
-        return False
-
-def detect_motion_segments(video_path: str, roi_corners: list, min_contour_area: int = 500) -> list:
-    """
-    Detects motion within a specified ROI in a video and returns timestamp segments.
-
-    Args:
-        video_path (str): Path to the input video file.
-        roi_corners (list): A list of four (x, y) tuples defining the region of interest.
-        min_contour_area (int): The minimum area for a contour to be considered motion.
-
-    Returns:
-        list: A list of [start_timestamp, end_timestamp] segments where motion was detected.
-    """
-    # 1. Initialization and Video Loading
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print(f"Error: Could not open video file at {video_path}")
-        return []
-
     fps = cap.get(cv2.CAP_PROP_FPS)
     if fps == 0:
-        print(f"Error: Could not determine FPS for video {video_path}. Assuming 30 FPS.")
-        fps = 30.0
-
-    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    video_duration = total_frames / fps
-
-    # 2. Create ROI Mask
-    ordered_corners = np.array([order_points(roi_corners)], dtype=np.int32)
-    mask = np.zeros((frame_height, frame_width), dtype=np.uint8)
-    cv2.fillPoly(mask, ordered_corners, 255)
-
-    # 3. Setup Background Subtractor
-    backSub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50, detectShadows=False)
-
-    # 4. Variables for Segment Tracking
-    motion_segments = []
-    motion_detected_flag = False
-    start_time = 0
-    frame_number = 0
+        print("Warning: Could not determine video FPS. Using 30 as default.")
+        fps = 30
     
-    print("Processing video...")
+    total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    duration = total_frames / fps
+    
+    cap.release()
+    
+    return {
+        'fps': fps,
+        'total_frames': total_frames,
+        'duration': duration
+    }
 
-    # 5. Main Processing Loop
+def detect_motion_in_video(video_path, roi_corners, motion_threshold=500):
+    """
+    Detect motion in a video within a specified region of interest.
+    
+    Args:
+        video_path (str): Path to the video file
+        roi_corners (list): List of 4 (x, y) tuples defining ROI corners
+        motion_threshold (int): Threshold for motion detection
+        
+    Returns:
+        list: List of (start_time, end_time) tuples for motion segments
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Could not open video file: {video_path}")
+    
+    # Get video properties
+    video_props = get_video_properties(video_path)
+    fps = video_props['fps']
+    
+    # Read first frame to get dimensions and create mask
+    ret, first_frame = cap.read()
+    if not ret:
+        cap.release()
+        raise ValueError("Could not read the first frame of the video")
+    
+    # Create ROI mask
+    mask = create_roi_mask(first_frame.shape, roi_corners)
+    
+    # Visualize and save ROI
+    visualize_roi(first_frame, roi_corners, 'motion_detection_ROI.png')
+    
+    # Reset to beginning
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    
+    # Initialize motion detection variables
+    prev_frame = None
+    frame_count = 0
+    segments = []
+    current_segment = None
+    
     while True:
         ret, frame = cap.read()
         if not ret:
-            break # End of video
-            
-        frame_number += 1
-        current_time = frame_number / fps
-
-        # Apply the ROI mask to the current frame
-        roi_frame = cv2.bitwise_and(frame, frame, mask=mask)
-
-        # Apply background subtractor to the ROI
-        fg_mask = backSub.apply(roi_frame)
-
-        # Clean up the foreground mask to reduce noise
-        _, fg_mask = cv2.threshold(fg_mask, 250, 255, cv2.THRESH_BINARY)
-        kernel = np.ones((5, 5), np.uint8)
-        fg_mask = cv2.dilate(fg_mask, kernel, iterations=2)
-
-        # Find contours of moving objects
-        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        is_motion_present = False
-        for contour in contours:
-            if cv2.contourArea(contour) > min_contour_area:
-                is_motion_present = True
-                break
+            break
         
-        # 6. State Management for Logging Segments
-        if is_motion_present and not motion_detected_flag:
-            motion_detected_flag = True
-            start_time = current_time
-            
-        elif not is_motion_present and motion_detected_flag:
-            motion_detected_flag = False
-            end_time = current_time
-            motion_segments.append([round(start_time, 2), round(end_time, 2)])
-
-    # 7. Finalization
-    if motion_detected_flag:
-        motion_segments.append([round(start_time, 2), round(video_duration, 2)])
-
-    cap.release()
-    print("Processing complete.")
-    return motion_segments
-
-if __name__ == "__main__":
-    video_file = "sample_motion_detection.mp4"
-    # Adjusted ROI to better fit the 1280x720 dummy video. Make sure these points
-    # are within the frame dimensions of your video.
-    region_of_interest_corners = [(5, 5), (1275, 5), (1275, 715), (5, 715)]
+        # Get timestamp
+        timestamp = frame_count / fps
+        frame_count += 1
+        
+        # Process frame for motion detection
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        masked_gray = cv2.bitwise_and(gray, gray, mask=mask)
+        blurred = cv2.GaussianBlur(masked_gray, (21, 21), 0)
+        
+        if prev_frame is None:
+            prev_frame = blurred
+            continue
+        
+        # Calculate motion score
+        frame_diff = cv2.absdiff(prev_frame, blurred)
+        thresh = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)[1]
+        thresh = cv2.dilate(thresh, None, iterations=2)
+        motion_score = np.sum(thresh) / 255
+        
+        # Check for motion
+        if motion_score > motion_threshold:
+            if current_segment is None:
+                current_segment = (timestamp, None)
+        else:
+            if current_segment is not None:
+                current_segment = (current_segment[0], timestamp)
+                segments.append(current_segment)
+                current_segment = None
+        
+        prev_frame = blurred
     
-    # Check if video file exists
-    if not os.path.exists(video_file):
-        print(f"Error: '{video_file}' not found.")
-        print("Please create a dummy video file named 'sample_motion_detection.mp4'.")
-        print("You can use ffmpeg: ffmpeg -f lavfi -i testsrc=size=1280x720:rate=30 -t 10 -pix_fmt yuv420p sample_motion_detection.mp4")
+    # Handle ongoing segment at end of video
+    if current_segment is not None:
+        end_time = frame_count / fps
+        current_segment = (current_segment[0], end_time)
+        segments.append(current_segment)
+    
+    cap.release()
+    return segments
+
+def add_padding_to_segments(segments, padding_seconds, video_duration):
+    """
+    Add padding to motion segments.
+    
+    Args:
+        segments (list): List of (start, end) tuples
+        padding_seconds (float): Seconds to add before and after each segment
+        video_duration (float): Total duration of the video
+        
+    Returns:
+        list: List of padded segments
+    """
+    if not segments:
+        return []
+    
+    padded_segments = []
+    for start, end in segments:
+        padded_start = max(0, start - padding_seconds)
+        padded_end = min(end + padding_seconds, video_duration)
+        padded_segments.append((padded_start, padded_end))
+    
+    return padded_segments
+
+def merge_overlapping_segments(segments):
+    """
+    Merge overlapping or touching segments.
+    
+    Args:
+        segments (list): List of (start, end) tuples
+        
+    Returns:
+        list: List of merged segments
+    """
+    if not segments:
+        return []
+    
+    # Sort by start time
+    sorted_segments = sorted(segments, key=lambda x: x[0])
+    
+    merged_segments = []
+    current_start, current_end = sorted_segments[0]
+    
+    for start, end in sorted_segments[1:]:
+        if start <= current_end:  # Overlapping or touching
+            current_end = max(current_end, end)
+        else:
+            merged_segments.append((current_start, current_end))
+            current_start, current_end = start, end
+    
+    merged_segments.append((current_start, current_end))
+    return merged_segments
+
+def process_motion_segments(segments, padding_seconds=0, video_duration=None):
+    if not segments:
+        return []
+    
+    processed_segments = segments
+    
+    if padding_seconds > 0:
+        if video_duration is None:
+            raise ValueError("video_duration is required when padding_seconds > 0")
+        processed_segments = add_padding_to_segments(processed_segments, padding_seconds, video_duration)
+    
+    processed_segments = merge_overlapping_segments(processed_segments)
+    return processed_segments
+
+def format_segments_as_json(segments):
+    """
+    Format segments as JSON string.
+    
+    Args:
+        segments (list): List of (start, end) tuples
+        
+    Returns:
+        str: JSON formatted string
+    """
+    video_segments = {"segments": segments}
+    return json.dumps(video_segments, indent=4)
+
+def print_motion_results(segments, padding_seconds=0, video_duration=None):
+    """
+    Print motion detection results in JSON format.
+    
+    Args:
+        segments (list): List of (start, end) tuples
+        padding_seconds (float): Seconds to add as padding
+        video_duration (float): Total video duration
+    """
+    if padding_seconds > 0 and video_duration is not None:
+        segments = process_motion_segments(segments, padding_seconds, video_duration)
+    
+    if not segments:
+        print("No motion detected in the selected region.")
+        return
+    
+    json_output = format_segments_as_json(segments)
+    print(json_output)
+
+# Main function using the utilities
+def main():
+    parser = argparse.ArgumentParser(description='Motion detection in video with ROI')
+    parser.add_argument('corners', nargs=4, help='Four corner points in format: x1,y1 x2,y2 x3,y3 x4,y4')
+    parser.add_argument('--video', default='sample_motion_detection.mp4', help='Input video path (default: sample_motion_detection.mp4)')
+    parser.add_argument('--threshold', type=int, default=500, help='Motion detection threshold (default: 500)')
+    parser.add_argument('--padding', type=float, default=1.0, help='Padding seconds around motion segments (default: 1.0)')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Parse corner points from command line arguments
+        roi_corners = parse_corners(args.corners)
+        
+        if len(roi_corners) != 4:
+            raise ValueError("Exactly 4 corner points are required")
+        
+        # Determine video path
+        if os.path.isabs(args.video):
+            video_path = args.video
+        else:
+            try:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+            except NameError:
+                script_dir = os.getcwd()
+            video_path = os.path.join(script_dir, args.video)
+        
+        # Get video properties and detect motion
+        video_props = get_video_properties(video_path)
+        motion_segments = detect_motion_in_video(video_path, roi_corners, motion_threshold=args.threshold)
+        print_motion_results(motion_segments, padding_seconds=args.padding, video_duration=video_props['duration'])
+        
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Generate ROI visualization
-    visualize_roi(video_file, region_of_interest_corners)
-
-    # Run the motion detection function
-    detected_segments = detect_motion_segments(
-        video_path=video_file, 
-        roi_corners=region_of_interest_corners
-    )
-
-    # --- MODIFIED FOR JSON OUTPUT ---
-
-    # Create a dictionary to hold the results
-    output_data = {
-        "video_file": os.path.basename(video_file),
-        "roi_corners_used": order_points(region_of_interest_corners),
-        "motion_segments": []
-    }
-
-    # Structure the segments for clarity in the JSON output
-    for start, end in detected_segments:
-        output_data["motion_segments"].append({
-            "start_time_seconds": start,
-            "end_time_seconds": end,
-            "duration_seconds": round(end - start, 2)
-        })
-
-    # Dump the dictionary to a JSON formatted string and print it.
-    # The `indent=2` argument makes the output human-readable (pretty-printed).
-    print("\n--- Motion Detection Results (JSON) ---")
-    print(json.dumps(output_data, indent=2))
+if __name__ == "__main__":
+    main()

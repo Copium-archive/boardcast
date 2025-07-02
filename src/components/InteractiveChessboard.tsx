@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { AppContext } from '@/App';
+import { VideoContext } from './VideoContainer';
 import { invoke } from '@tauri-apps/api/core';
 
 type Point = [number, number];
 
-interface ChessboardContours {
+interface Contour {
   'top-left': Point[];
   'top-right': Point[];
   'bottom-right': Point[];
@@ -44,12 +45,14 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     editing,
 }) => {
     const { isEditingContour, setIsEditingContour, setExecutingSegmentation} = useContext(AppContext);
-    const [chessboardContours, setChessboardContours] = useState<ChessboardContours>({
+    const { setROI} = useContext(VideoContext)
+    const [boardContours, setBoardContours] = useState<Contour>({
         'top-left': [],
         'top-right': [],
         'bottom-right': [],
         'bottom-left': []
     });
+    
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
     const [editingPoints, setEditingPoints] = useState<Point[]>([]);
 
@@ -68,6 +71,8 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 return;
             }
             const corners = editingPoints.slice(0, 4).map(([x, y]) => `${Math.round(x)},${Math.round(y)}`);
+            console.log("supposed ROI", corners)
+            setROI(corners)
             const result = await invoke('run_python_script', {
                 script: 'segmentation.py', 
                 cliArgs: corners,
@@ -75,7 +80,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 jsonOutput: true // This will parse the JSON output from the Python script
             });
 
-            setChessboardContours(result as ChessboardContours); 
+            setBoardContours(result as Contour); 
             setEditingPoints([]); 
             setExecutingSegmentation(false);
         };
@@ -93,7 +98,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         return `${file}${rank}`;
     };
 
-    const { squares, viewBox, viewBoxRect } = useMemo(() => {
+    const { squares, viewBox } = useMemo(() => {
         // --- STEP 1: Calculate the viewBox based on the bounds props. ---
         // This is independent of the number of squares.
         const { x_min, y_min, x_max, y_max } = originalDataBounds;
@@ -110,13 +115,12 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         }
 
         const calculatedViewBox = `${x_min} ${y_min} ${width} ${height}`;
-        const calculatedViewBoxRect = { x: x_min, y: y_min, width, height };
 
         // --- STEP 2: Dynamically determine the number of squares to process. ---
-        const tl = chessboardContours['top-left'];
-        const tr = chessboardContours['top-right'];
-        const bl = chessboardContours['bottom-left'];
-        const br = chessboardContours['bottom-right'];
+        const tl = boardContours['top-left'];
+        const tr = boardContours['top-right'];
+        const bl = boardContours['bottom-left'];
+        const br = boardContours['bottom-right'];
 
         // Find the number of squares we can safely create. This is the minimum
         // length of all the contour arrays. If any are missing or empty, this will be 0.
@@ -145,9 +149,8 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         return {
             squares: processedSquares,
             viewBox: calculatedViewBox,
-            viewBoxRect: calculatedViewBoxRect
         };
-    }, [chessboardContours, originalDataBounds]);
+    }, [boardContours, originalDataBounds]);
 
     const handleSquareClick = (square: ProcessedSquare) => {
         if (!editing) {
@@ -159,23 +162,16 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         if (!editing) return;
 
         const svg = event.currentTarget;
-        const rect = svg.getBoundingClientRect();
+        const pt = svg.createSVGPoint();
+        pt.x = event.clientX;
+        pt.y = event.clientY;
         
-        const clickX = event.clientX - rect.left;
-        const clickY = event.clientY - rect.top;
+        const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
         
-        const svgWidth = rect.width;
-        const svgHeight = rect.height;
-        const { x, y, width, height } = viewBoxRect;
-        
-        const viewBoxX = x + (clickX / svgWidth) * width;
-        const viewBoxY = y + (clickY / svgHeight) * height;
-        
-        // Add the point to the editing points array
-        const newPoint: Point = [viewBoxX, viewBoxY];
+        const newPoint: Point = [svgP.x, svgP.y];
         setEditingPoints(prev => [...prev, newPoint]);
         
-        console.log(`Added point at ViewBox coordinates: (${viewBoxX.toFixed(2)}, ${viewBoxY.toFixed(2)})`);
+        console.log(`SVG coordinates: (${svgP.x}, ${svgP.y})`);
     };
 
     const svgStyle: React.CSSProperties = {
