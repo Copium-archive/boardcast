@@ -2,8 +2,7 @@ import React, { useRef, useState, useEffect, useImperativeHandle, forwardRef } f
 import Timeline from "./TimeLine";
 import { AppContext } from "@/App";
 import DynamicChessOverlay from "./DynamicChessOverlay";
-// import InteractiveChessboard from "./InteractiveChessboard";
-import InteractiveChessboardOld from "./InteractiveChessboardOld";
+import InteractiveChessboard from "./InteractiveChessboard";
 
 interface Offset {
     x_offsetRatio: number;
@@ -91,6 +90,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   const [sizeRatio, setSizeRatio] = useState(0.8);
 
   const [ROI, setROI] = useState<string[]>([]);
+  const [coord, setCoord] = useState<{x_max: number, y_max:number}>({x_max : 0, y_max : 0});
 
   const calculateBoardSize = () => {
     if(!videoRef.current) return;
@@ -164,6 +164,10 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     const x_max = x_min + renderedWidth;
     const y_max = y_min + renderedHeight;
 
+    setCoord({
+      x_max:intrinsicWidth, 
+      y_max:intrinsicHeight
+    })
     setVideoBoundingBox({
       x_min,
       y_min,
@@ -314,26 +318,16 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               />
             ) : null}
             
-            {/* {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && 
-             (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ?
-              (
-              <InteractiveChessboard 
-                  originalDataBounds={{x_min: 0, y_min: 0, x_max: 1289, y_max: 663}}
-                  boundingBox={videoBoundingBox}
-                  editing={isEditingContour}
-              />
-            ) : null} */}
-
             {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && 
              (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ?
               (
-              <InteractiveChessboardOld 
-                  originalDataBounds={{x_min: 0, y_min: 0, x_max: 1289, y_max: 663}}
+              <InteractiveChessboard 
+                  // coord={{x_max: 1289, y_max: 663}}
+                  coord={coord}
                   boundingBox={videoBoundingBox}
                   editing={isEditingContour}
               />
             ) : null}
-
             
             {videoPath ? (
               <video

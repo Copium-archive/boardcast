@@ -33,14 +33,19 @@ interface BoundingBox {
   y_max: number;
 }
 
+interface Coord {
+  x_max: number;
+  y_max: number;
+}
+
 interface InteractiveChessboardProps {
-  originalDataBounds: BoundingBox;
+  coord: Coord;
   boundingBox: BoundingBox;
   editing: boolean;
 }
 
 const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
-    originalDataBounds,
+    coord,
     boundingBox,
     editing,
 }) => {
@@ -98,15 +103,15 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         return `${file}${rank}`;
     };
 
-    const { squares, viewBox } = useMemo(() => {
+    const { squares, viewBox, viewBoxRect } = useMemo(() => {
         // --- STEP 1: Calculate the viewBox based on the bounds props. ---
         // This is independent of the number of squares.
-        const { x_min, y_min, x_max, y_max } = originalDataBounds;
-        const width = x_max - x_min;
-        const height = y_max - y_min;
+        const { x_max, y_max } = coord;
+        const width = x_max;
+        const height = y_max;
 
         // If the bounds are invalid, return a completely empty state.
-        if (!originalDataBounds || width <= 0 || height <= 0) {
+        if (!coord || width <= 0 || height <= 0) {
             return {
                 squares: [],
                 viewBox: '0 0 0 0',
@@ -114,7 +119,9 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
             };
         }
 
-        const calculatedViewBox = `${x_min} ${y_min} ${width} ${height}`;
+        // ViewBox starts at origin (0,0) with the specified width and height
+        const calculatedViewBox = `0 0 ${width} ${height}`;
+        const calculatedViewBoxRect = { x: 0, y: 0, width, height };
 
         // --- STEP 2: Dynamically determine the number of squares to process. ---
         const tl = boardContours['top-left'];
@@ -149,8 +156,9 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         return {
             squares: processedSquares,
             viewBox: calculatedViewBox,
+            viewBoxRect: calculatedViewBoxRect,
         };
-    }, [boardContours, originalDataBounds]);
+    }, [boardContours, coord]);
 
     const handleSquareClick = (square: ProcessedSquare) => {
         if (!editing) {
@@ -165,13 +173,17 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         const pt = svg.createSVGPoint();
         pt.x = event.clientX;
         pt.y = event.clientY;
-        
+
         const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-        
-        const newPoint: Point = [svgP.x, svgP.y];
+
+        // Ensure coordinates are non-negative
+        const x = Math.max(0, svgP.x);
+        const y = Math.max(0, svgP.y);
+
+        const newPoint: Point = [x, y];
         setEditingPoints(prev => [...prev, newPoint]);
-        
-        console.log(`SVG coordinates: (${svgP.x}, ${svgP.y})`);
+
+        console.log(`SVG coordinates: (${x}, ${y})`);
     };
 
     const svgStyle: React.CSSProperties = {
@@ -193,6 +205,20 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 preserveAspectRatio="xMidYMid meet"
                 onClick={handleSvgClick}
             >
+                {/* Debug rectangle to show the full viewBox bounds */}
+                <rect
+                    x={viewBoxRect.x}
+                    y={viewBoxRect.y}
+                    width={viewBoxRect.width}
+                    height={viewBoxRect.height}
+                    fill="none"
+                    stroke="blue"
+                    strokeWidth={2}
+                    strokeDasharray="5,5"
+                    vectorEffect="non-scaling-stroke"
+                    style={{ pointerEvents: 'none' }}
+                />
+                
                 <g>
                     {!isEditingContour && squares.map((square) => (
                         <polygon
