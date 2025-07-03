@@ -1,12 +1,26 @@
 [Task]
-- implement motion detection
+- Fix the coordinate mapping between the GUI and our motion detection script
 
 [Breakdown]
 
-- this might not be difficult, but it requires extensive testing
+- InteractiveChessboard : 
+0: 
+"4,-7"
+1: 
+"542,-9"
+2: 
+"540,531"
+3: 
+"5,533"
 
-basic configs : 
-- adjust sensitivity threshold
-- enable / disable autoskip
+- InteractiveChessboardOld : 
+0: 
+"4,2"
+1: 
+"538,4"
+2: 
+"540,525"
+3: 
+"5,526"
 
-To do :
+- yeah, we can conclude that both components used the same coordinate system, the difference is marginal

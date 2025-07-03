@@ -2,7 +2,8 @@ import React, { useRef, useState, useEffect, useImperativeHandle, forwardRef } f
 import Timeline from "./TimeLine";
 import { AppContext } from "@/App";
 import DynamicChessOverlay from "./DynamicChessOverlay";
-import InteractiveChessboard from "./InteractiveChessboard";
+// import InteractiveChessboard from "./InteractiveChessboard";
+import InteractiveChessboardOld from "./InteractiveChessboardOld";
 
 interface Offset {
     x_offsetRatio: number;
@@ -313,7 +314,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               />
             ) : null}
             
-            {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && 
+            {/* {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && 
              (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ?
               (
               <InteractiveChessboard 
@@ -321,7 +322,18 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
                   boundingBox={videoBoundingBox}
                   editing={isEditingContour}
               />
+            ) : null} */}
+
+            {(videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && 
+             (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ?
+              (
+              <InteractiveChessboardOld 
+                  originalDataBounds={{x_min: 0, y_min: 0, x_max: 1289, y_max: 663}}
+                  boundingBox={videoBoundingBox}
+                  editing={isEditingContour}
+              />
             ) : null}
+
             
             {videoPath ? (
               <video
