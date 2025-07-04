@@ -9,7 +9,7 @@ import { VideoContext } from "./VideoContainer";
 import SettingsDialog from "./SettingsDialog";
 import CheckpointCarousel from "./CheckpointCarousel";
 import VideoSlider from "./VideoSlider";
-import { invoke } from "@tauri-apps/api/core";
+// import { invoke } from "@tauri-apps/api/core";
 
 interface TimelineProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -42,23 +42,39 @@ const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: Tim
         return;
       }
       try {
-        console.log("region of interest", ROI)
-        const result = await invoke<string>("run_python_script", {
-          script: "motion.py",
-          cliArgs: ROI,
-          osEnv: "Windows"
-        });
-        // Parse the result as JSON and set autoSkipSegments
-        // The result is expected to be a JSON string like: {"segments": [[0, 10], [15.0, 18], [23, 26]]}
-        const parsed = JSON.parse(result);
-        if (Array.isArray(parsed.segments)) {
-          setAutoSkipSegments(
-            parsed.segments.map(([start, end]: [number, number]) => ({ start, end }))
-          );
-        } else {
-          setAutoSkipSegments([]);
-        }
-        console.log("Auto-skip script output:", parsed);
+        // console.log("region of interest", ROI)
+        // const result = await invoke<string>("run_python_script", {
+        //   script: "motion.py",
+        //   cliArgs: ROI,
+        //   osEnv: "Windows"
+        // });
+        // // Parse the result as JSON and set autoSkipSegments
+        // // The result is expected to be a JSON string like: {"segments": [[0, 10], [15.0, 18], [23, 26]]}
+        // const parsed = JSON.parse(result);
+        // if (Array.isArray(parsed.segments)) {
+        //   setAutoSkipSegments(
+        //     parsed.segments.map(([start, end]: [number, number]) => ({ start, end }))
+        //   );
+        // } else {
+        //   setAutoSkipSegments([]);
+        // }
+        // console.log("Auto-skip script output:", parsed);
+
+        // Dummy result for development/testing
+        const dummyParsed = {
+          segments: [
+            [0, 10],
+            [15, 18],
+            [23, 26]
+          ]
+        };
+        setAutoSkipSegments(
+          dummyParsed.segments.map((segment: number[]) => {
+            const [start, end] = segment;
+            return { start, end };
+          })
+        );
+        console.log("Auto-skip script output (dummy):", dummyParsed);
       } catch (error) {
         console.error("Error running auto-skip script:", error);
         setAutoSkipSegments([]);

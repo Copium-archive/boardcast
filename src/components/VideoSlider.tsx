@@ -106,7 +106,6 @@ const VideoSlider = ({
             );
         })}
 
-        {/* Thin horizontal red checkpoint lines */}
         {isEnabled && checkpoints.map((checkpoint) => {
             const position = (checkpoint / duration) * 100;
             return (

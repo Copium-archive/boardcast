@@ -1,28 +1,20 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { AppContext } from '@/App';
 import { VideoContext } from './VideoContainer';
-import { invoke } from '@tauri-apps/api/core';
+import { segmentChessboard, validateChessboardCorners } from '../lib/chessboard-segmentation';
+
 
 type Point = [number, number];
-
-interface Contour {
-  'top-left': Point[];
-  'top-right': Point[];
-  'bottom-right': Point[];
-  'bottom-left': Point[];
-}
-
-interface SquarePoints {
-  tl: Point;
-  tr: Point;
-  br: Point;
-  bl: Point;
-}
 
 interface ProcessedSquare {
   id: number;
   notation: string;
-  points: SquarePoints;
+  corners: {
+    topLeft: Point;
+    topRight: Point;
+    bottomRight: Point;
+    bottomLeft: Point;
+  };
   pointsString: string;
 }
 
@@ -44,125 +36,129 @@ interface InteractiveChessboardProps {
   editing: boolean;
 }
 
+function orderCorners(corners: Point[]): Point[] {
+    if (corners.length !== 4) {
+        throw new Error('Exactly 4 corners are required');
+    }
+
+    // Sort by y coordinate (ascending)
+    const sortedByY = [...corners].sort((a, b) => a[1] - b[1]);
+    const topPoints = sortedByY.slice(0, 2).sort((a, b) => a[0] - b[0]);
+    const bottomPoints = sortedByY.slice(2, 4).sort((a, b) => a[0] - b[0]);
+
+    return [
+        topPoints[0],    // top-left
+        topPoints[1],    // top-right
+        bottomPoints[1], // bottom-right
+        bottomPoints[0]  // bottom-left
+    ];
+}
+
 const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     coord,
     boundingBox,
     editing,
 }) => {
-    const { isEditingContour, setIsEditingContour, setExecutingSegmentation} = useContext(AppContext);
-    const { setROI} = useContext(VideoContext)
-    const [boardContours, setBoardContours] = useState<Contour>({
-        'top-left': [],
-        'top-right': [],
-        'bottom-right': [],
-        'bottom-left': []
-    });
+    const { isEditingContour, setIsEditingContour, setExecutingSegmentation } = useContext(AppContext);
+    const { setROI } = useContext(VideoContext);
     
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
     const [editingPoints, setEditingPoints] = useState<Point[]>([]);
+    const [boardOutline, setBoardOutline] = useState<string>("")
+    const [squares, setSquares] = useState<ProcessedSquare[]>([]);
 
+    // Process chessboard segmentation when we have 4 points
     useEffect(() => {
-        if(editingPoints.length >= 4) {
+        if (editingPoints.length >= 4) {
             setIsEditingContour(false);
             setExecutingSegmentation(true);
         }
-    }, [editingPoints]);
-        
+    }, [editingPoints, setIsEditingContour, setExecutingSegmentation]);
+
+    // Run segmentation when editing is complete
     useEffect(() => {
-        const runScript = async () => {
-            if(editingPoints.length < 4) {
+        const processChessboard = () => {
+            if (editingPoints.length < 4) {
+                setSquares([]);
                 setEditingPoints([]); 
                 setExecutingSegmentation(false);
                 return;
             }
-            const corners = editingPoints.slice(0, 4).map(([x, y]) => `${Math.round(x)},${Math.round(y)}`);
-            console.log("supposed ROI", corners)
-            setROI(corners)
-            const result = await invoke('run_python_script', {
-                script: 'segmentation.py', 
-                cliArgs: corners,
-                osEnv: 'Windows', // or 'Wsl' depending on your setup
-                jsonOutput: true // This will parse the JSON output from the Python script
-            });
 
-            setBoardContours(result as Contour); 
-            setEditingPoints([]); 
-            setExecutingSegmentation(false);
+            try {
+                // Convert points to the format expected by the segmentation function
+                const corners = editingPoints.slice(0, 4).map(([x, y]) => ({ x, y }));
+                
+                // Validate corners
+                if (!validateChessboardCorners(corners)) {
+                    console.warn('Invalid chessboard corners selected');
+                    setSquares([]);
+                    setExecutingSegmentation(false);
+                    return;
+                }
+
+                // Set ROI for video context
+                const cornersString = corners.map(({ x, y }) => `${Math.round(x)},${Math.round(y)}`);
+                console.log("ROI corners:", cornersString);
+                setROI(cornersString);
+
+                // Perform segmentation
+                const result = segmentChessboard(corners);
+                
+                // Convert to the format expected by the component
+                const processedSquares: ProcessedSquare[] = result.squares.map(square => ({
+                    id: square.id,
+                    notation: square.notation,
+                    corners: {
+                        topLeft: [square.corners.topLeft.x, square.corners.topLeft.y],
+                        topRight: [square.corners.topRight.x, square.corners.topRight.y],
+                        bottomRight: [square.corners.bottomRight.x, square.corners.bottomRight.y],
+                        bottomLeft: [square.corners.bottomLeft.x, square.corners.bottomLeft.y]
+                    },
+                    pointsString: [
+                        square.corners.topLeft,
+                        square.corners.topRight,
+                        square.corners.bottomRight,
+                        square.corners.bottomLeft
+                    ].map(p => `${p.x},${p.y}`).join(' ')
+                }));
+                
+                const newBoardOutline = orderCorners(editingPoints).map(p => `${p[0]},${p[1]}`).join(' ');
+                console.log("new board outline", newBoardOutline);
+                setBoardOutline(newBoardOutline);
+                setSquares(processedSquares);
+                setEditingPoints([]);
+                setExecutingSegmentation(false);
+                
+                console.log(`Generated ${processedSquares.length} chess squares`);
+            } catch (error) {
+                console.error('Error in chessboard segmentation:', error);
+                setSquares([]);
+                setExecutingSegmentation(false);
+            }
         };
 
-        if(isEditingContour === false) {
-            runScript();
+        if (isEditingContour === false) {
+            processChessboard();
         }
     }, [isEditingContour]);
 
-    const indexToChessNotation = (index: number): string => {
-        const col = index % 8;
-        const row = Math.floor(index / 8);
-        const file = String.fromCharCode('A'.charCodeAt(0) + col);
-        const rank = 8 - row;
-        return `${file}${rank}`;
-    };
-
-    const { squares, viewBox, viewBoxRect } = useMemo(() => {
-        // --- STEP 1: Calculate the viewBox based on the bounds props. ---
-        // This is independent of the number of squares.
+    const viewBox = useMemo(() => {
         const { x_max, y_max } = coord;
         const width = x_max;
         const height = y_max;
 
-        // If the bounds are invalid, return a completely empty state.
         if (!coord || width <= 0 || height <= 0) {
-            return {
-                squares: [],
-                viewBox: '0 0 0 0',
-                viewBoxRect: { x: 0, y: 0, width: 0, height: 0 }
-            };
+            return '0 0 0 0';
         }
 
-        // ViewBox starts at origin (0,0) with the specified width and height
-        const calculatedViewBox = `0 0 ${width} ${height}`;
-        const calculatedViewBoxRect = { x: 0, y: 0, width, height };
-
-        // --- STEP 2: Dynamically determine the number of squares to process. ---
-        const tl = boardContours['top-left'];
-        const tr = boardContours['top-right'];
-        const bl = boardContours['bottom-left'];
-        const br = boardContours['bottom-right'];
-
-        // Find the number of squares we can safely create. This is the minimum
-        // length of all the contour arrays. If any are missing or empty, this will be 0.
-        const numSquares = Math.min(
-            tl?.length || 0,
-            tr?.length || 0,
-            bl?.length || 0,
-            br?.length || 0
-        );
-
-        // --- STEP 3: Loop based on the dynamic number of squares. ---
-        // If numSquares is 0, this will correctly create an empty array.
-        const processedSquares: ProcessedSquare[] = Array.from({ length: numSquares }).map((_, i) => {
-            // This code is now safe. We are guaranteed that tl[i], tr[i], etc., all exist
-            // because we're only looping up to the minimum length.
-            const points: SquarePoints = { tl: tl[i], tr: tr[i], br: br[i], bl: bl[i] };
-            return {
-                id: i,
-                notation: indexToChessNotation(i),
-                points: points,
-                pointsString: `${points.tl.join(',')} ${points.tr.join(',')} ${points.br.join(',')} ${points.bl.join(',')}`,
-            };
-        });
-
-        // --- STEP 4: Return the calculated viewBox and the dynamically generated squares. ---
-        return {
-            squares: processedSquares,
-            viewBox: calculatedViewBox,
-            viewBoxRect: calculatedViewBoxRect,
-        };
-    }, [boardContours, coord]);
+        return `0 0 ${width} ${height}`;
+    }, [coord]);
 
     const handleSquareClick = (square: ProcessedSquare) => {
         if (!editing) {
             setSelectedSquare(square);
+            console.log(`Selected square: ${square.notation}`);
         }
     };
 
@@ -182,8 +178,6 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
 
         const newPoint: Point = [x, y];
         setEditingPoints(prev => [...prev, newPoint]);
-
-        console.log(`SVG coordinates: (${x}, ${y})`);
     };
 
     const svgStyle: React.CSSProperties = {
@@ -205,28 +199,29 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 preserveAspectRatio="xMidYMid meet"
                 onClick={handleSvgClick}
             >
-                {/* Debug rectangle to show the full viewBox bounds */}
-                <rect
-                    x={viewBoxRect.x}
-                    y={viewBoxRect.y}
-                    width={viewBoxRect.width}
-                    height={viewBoxRect.height}
-                    fill="none"
-                    stroke="blue"
-                    strokeWidth={2}
-                    strokeDasharray="5,5"
-                    vectorEffect="non-scaling-stroke"
-                    style={{ pointerEvents: 'none' }}
-                />
-                
+
+                {/* Chessboard outline */}
+                {!isEditingContour && boardOutline && (
+                    <polygon
+                        points={boardOutline}
+                        fill="transparent"
+                        stroke="#60a5fa"
+                        strokeWidth={2}
+                        vectorEffect="non-scaling-stroke"
+                        strokeDasharray="5,5"
+                        style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 2px #fff)' }}
+                    />
+                )}
+
+                {/* Chess squares */}
                 <g>
                     {!isEditingContour && squares.map((square) => (
                         <polygon
                             key={square.id}
                             points={square.pointsString}
                             fill="transparent"
-                            stroke={selectedSquare?.id === square.id ? 'yellow' : 'red'}
-                            strokeWidth={selectedSquare?.id === square.id ? 4 : 1}
+                            stroke={selectedSquare?.id === square.id ? '#3b82f6' : '#60a5fa'}
+                            strokeWidth={selectedSquare?.id === square.id ? 4 : 0}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleSquareClick(square);
@@ -241,19 +236,68 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                     ))}
                 </g>
                 
+                {/* Corner points being edited */}
                 {editingPoints.map((point, index) => (
-                    <circle
-                        key={index}
-                        cx={point[0]}
-                        cy={point[1]}
-                        r={3}
-                        fill="red"
-                        stroke="red"
-                        strokeWidth={1}
-                        vectorEffect="non-scaling-stroke"
-                        style={{ pointerEvents: 'none' }}
-                    />
+                    <g key={index}>
+                        <circle
+                            cx={point[0]}
+                            cy={point[1]}
+                            r={5}
+                            fill="#3b82f6"
+                            stroke="white"
+                            strokeWidth={2}
+                            vectorEffect="non-scaling-stroke"
+                            style={{ pointerEvents: 'none' }}
+                        />
+                        <text
+                            x={point[0]}
+                            y={point[1] - 10}
+                            fill="white"
+                            fontSize="12"
+                            textAnchor="middle"
+                            style={{ pointerEvents: 'none' }}
+                        >
+                            {index + 1}
+                        </text>
+                    </g>
                 ))}
+                
+                {/* Connect the corner points with lines */}
+                {editingPoints.length > 1 && (
+                    <g>
+                    {editingPoints.map((point, index) => {
+                        if (index === 0) return null;
+                        const prevPoint = editingPoints[index - 1];
+                        return (
+                        <line
+                            key={`line-${index}`}
+                            x1={prevPoint[0]}
+                            y1={prevPoint[1]}
+                            x2={point[0]}
+                            y2={point[1]}
+                            stroke="#3b82f6"
+                            strokeWidth={4}
+                            strokeDasharray="8,4"
+                            vectorEffect="non-scaling-stroke"
+                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 2px #fff)' }}
+                        />
+                        );
+                    })}
+                    {editingPoints.length === 4 && (
+                        <line
+                        x1={editingPoints[3][0]}
+                        y1={editingPoints[3][1]}
+                        x2={editingPoints[0][0]}
+                        y2={editingPoints[0][1]}
+                        stroke="#f59e42"
+                        strokeWidth={4}
+                        strokeDasharray="8,4"
+                        vectorEffect="non-scaling-stroke"
+                        style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 2px #fff)' }}
+                        />
+                    )}
+                    </g>
+                )}
             </svg>
         </>
     );
