@@ -307,7 +307,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         ROI, setROI
         }}>
         <div className="flex flex-col justify-center items-center w-full">
-          <div className="w-full max-w-full aspect-video bg-black rounded-t-lg relative" onDoubleClick={handleOverlaying}>
+          <div className="w-full max-w-full aspect-video bg-black relative" onDoubleClick={handleOverlaying}>
             {overlays[currentOverlayId].fen && (videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ? (
               <DynamicChessOverlay 
               currentFen={overlays[currentOverlayId].fen} 

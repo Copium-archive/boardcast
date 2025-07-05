@@ -203,12 +203,12 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         if (!executingSegmentation || finalBoardCorners.length !== 4 || !coord) return null;
 
         const boardTopRight = finalBoardCorners[1]; // Get top-right from ordered corners
-        const viewboxTopRight: Point = [coord.x_max, 0];
+        const viewboxTopRight: Point = [coord.x_max+2, (coord.x_max / 10)];
 
         return {
             boardOutline: finalBoardCorners.map(p => `${p[0]},${p[1]}`).join(' '),
-            arrowStart: boardTopRight,
-            arrowEnd: viewboxTopRight,
+            arrowStart: viewboxTopRight,
+            arrowEnd: boardTopRight,
         };
     }, [executingSegmentation, finalBoardCorners, coord]);
 
@@ -227,7 +227,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                     <g>
                         <defs>
                             {/* Define the arrowhead marker */}
-                            {/* <marker
+                            <marker
                                 id="arrowhead"
                                 viewBox="0 0 10 10"
                                 refX="8"
@@ -237,7 +237,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                                 orient="auto-start-reverse"
                             >
                                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#60a5fa" />
-                            </marker> */}
+                            </marker>
                             {/* 
                                 Define the mask.
                                 The mask is white by default, making everything under it visible.
@@ -247,15 +247,6 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                             <mask id="segmentation-mask">
                                 <rect x="0" y="0" width="100%" height="100%" fill="white" />
                                 <polygon points={segmentationEffectPoints.boardOutline} fill="black" />
-                                <line
-                                    x1={segmentationEffectPoints.arrowStart[0]}
-                                    y1={segmentationEffectPoints.arrowStart[1]}
-                                    x2={segmentationEffectPoints.arrowEnd[0]}
-                                    y2={segmentationEffectPoints.arrowEnd[1]}
-                                    stroke="black"
-                                    strokeWidth={8}
-                                    vectorEffect="non-scaling-stroke"
-                                />
                             </mask>
                         </defs>
                         
@@ -279,8 +270,9 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                             stroke="#60a5fa"
                             strokeWidth={4}
                             vectorEffect="non-scaling-stroke"
+                            strokeDasharray="5,5"
                             markerEnd="url(#arrowhead)"
-                            style={{ pointerEvents: 'none'}}
+                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 1px #fff)' }}
                         />
                     </g>
                 )}
