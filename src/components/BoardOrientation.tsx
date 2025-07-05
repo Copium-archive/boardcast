@@ -1,0 +1,188 @@
+import { AppContext } from '@/App';
+import { useState, useContext} from 'react';
+import { RotateCw, Check } from 'lucide-react';
+import EvalBar from './EvalBar';
+import { Chess, Square } from 'chess.js';
+
+const createChessboardColors = () => {
+  const lightSquare = "#f0d9b5";
+  const darkSquare = "#b58863";
+
+  const boardColors = Array.from({ length: 8 }, (_, row) => {
+    return Array.from({ length: 8 }, (_, col) => {
+      return (row + col) % 2 === 0 ? lightSquare : darkSquare;
+    });
+  });
+
+  return boardColors;
+};
+
+function algebraicNotation(row: number, col: number): Square {
+  const file = String.fromCharCode('a'.charCodeAt(0) + col);
+  const rank = 8 - row;
+  return (file + rank) as Square;
+}
+
+// Function to rotate coordinates based on orientation
+function rotatePosition(row: number, col: number, orientation: number) {
+  let newRow = row;
+  let newCol = col;
+  
+  for (let i = 0; i < orientation; i++) {
+    const temp = newRow;
+    newRow = newCol;
+    newCol = 7 - temp;
+  }
+  
+  return { row: newRow, col: newCol };
+}
+
+function inferFen(fenString: string) {
+  try {
+    const chess = new Chess(fenString);
+    const boardPieces = [];
+    
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const square = algebraicNotation(row, col);
+        const piece = chess.get(square);
+        if (piece) {
+          const moves = chess.moves({
+            square: square,
+            verbose: true
+          });
+          
+          const validMoves = moves.map((move, index) => {
+            const moveRow = 8 - parseInt(move.to.charAt(1));
+            const moveCol = move.to.charCodeAt(0) - 'a'.charCodeAt(0);
+            return {
+              index,
+              row: moveRow,
+              col: moveCol,
+              display: `#${index}(${moveRow}, ${moveCol})`
+            };
+          });
+          
+          boardPieces.push({
+            piece: piece.type,
+            color: piece.color,
+            position: {
+              square,
+              row,
+              col
+            },
+            validMoves: validMoves,
+            display: `current square: (${row}, ${col})\nvalid square in the next turn: ${validMoves.map(m => m.display).join(', ')}`
+          });
+        }
+      }
+    }
+    
+    return boardPieces;
+  } catch (error) {
+    console.error("Invalid FEN string:", error);
+    return [];
+  }
+}
+
+function BoardOrientation() {
+    const boardColors = createChessboardColors();
+    const chess = new Chess();
+    const boardData = inferFen(chess.fen());
+    const [hovered, setHovered] = useState<string | null>(null);
+    const {boardOrientation, setBoardOrientation, setExecutingSegmentation} = useContext(AppContext);
+
+    const handleRotate = () => {
+        setBoardOrientation((prev: number) => (prev + 1) % 4);
+    };
+
+    const handleOk = () => {
+        setExecutingSegmentation(false)
+    };
+
+    return (
+        <>
+            <div className='flex flex-row w-full aspect-9/8 gap-1'>
+                <div className="flex flex-row flex-wrap h-full aspect-square relative">
+                    {boardColors.map((row, rowIndex) => (
+                    row.map((color, colIndex) => {
+                        const squareIndex = rowIndex * 8 + colIndex;
+                        
+                        return (
+                        <div
+                            key={squareIndex}
+                            className="w-1/8 h-1/8"
+                            style={{ 
+                            backgroundColor: color, 
+                            boxSizing: 'border-box',
+                            boxShadow: `0px 0px 0px 5px ${color} inset` 
+                            }}
+                        ></div>
+                        );
+                    })
+                    ))}
+
+                    {/* Render pieces on top with rotation */}
+                    {boardData.map((piece) => {
+                        const label = piece.color + piece.piece.toUpperCase();
+                        const { row, col } = piece.position;
+                        
+                        // Apply rotation to piece position
+                        const rotatedPos = rotatePosition(row, col, boardOrientation);
+
+                        return (
+                            <img
+                                key={`${piece.position.square}`}
+                                src={`/chess/${label}.svg`}
+                                className="absolute w-[12.5%] h-[12.5%]"
+                                style={{
+                                    left: `${rotatedPos.col * 12.5}%`,
+                                    top: `${rotatedPos.row * 12.5}%`,
+                                }}
+                                alt={label}
+                            />
+                        );
+                    })}
+                </div>
+                <EvalBar score={0.33} turn={"w"} />
+            </div>
+            <div className='w-full h-full flex flex-col'>
+                <button
+                    onClick={handleRotate}
+                    onMouseEnter={() => setHovered("rotate")}
+                    onMouseLeave={() => setHovered(null)}
+                    className={`flex-1 p-6 transition-all duration-300 flex flex-col items-center justify-center ${
+                        hovered === "rotate" 
+                            ? 'text-white shadow-lg' 
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                    style={hovered === "rotate" ? { backgroundColor: '#60a5fa', borderColor: '#60a5fa' } : {}}
+                >
+                    <RotateCw size={56} className="mb-3" />
+                    <span className={`text-5xl font-semibold`}>
+                        Rotate
+                    </span>
+                </button>
+                <div className="w-full h-px bg-gray-200" />
+                <button
+                    onClick={handleOk}
+                    onMouseEnter={() => setHovered("ok")}
+                    onMouseLeave={() => setHovered(null)}
+                    className={`flex-1 p-6 transition-all duration-300 flex flex-col items-center justify-center ${
+                        hovered === "ok" 
+                            ? 'bg-green-500 border-green-600 text-white shadow-lg' 
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                >
+                    <Check size={56} className="mb-3" />
+                    <span className={`text-5xl font-semibold`}>
+                        OK
+                    </span>
+                </button>
+            </div>
+
+        </>
+    )
+}
+
+export default BoardOrientation

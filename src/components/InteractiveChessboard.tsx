@@ -59,13 +59,16 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     boundingBox,
     editing,
 }) => {
-    const { isEditingContour, setIsEditingContour, setExecutingSegmentation } = useContext(AppContext);
+    const { isEditingContour, setIsEditingContour, executingSegmentation, setExecutingSegmentation } = useContext(AppContext);
     const { setROI } = useContext(VideoContext);
     
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
     const [editingPoints, setEditingPoints] = useState<Point[]>([]);
     const [boardOutline, setBoardOutline] = useState<string>("")
     const [squares, setSquares] = useState<ProcessedSquare[]>([]);
+    // --- NEW: State to hold the final corners for the segmentation effect ---
+    const [finalBoardCorners, setFinalBoardCorners] = useState<Point[]>([]);
+
 
     // Process chessboard segmentation when we have 4 points
     useEffect(() => {
@@ -73,14 +76,15 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
             setIsEditingContour(false);
             setExecutingSegmentation(true);
         }
-    }, [editingPoints, setIsEditingContour, setExecutingSegmentation]);
+    }, [editingPoints]);
 
     // Run segmentation when editing is complete
     useEffect(() => {
         const processChessboard = () => {
             if (editingPoints.length < 4) {
                 setSquares([]);
-                setEditingPoints([]); 
+                setEditingPoints([]);
+                setFinalBoardCorners([]); // --- NEW: Clear final corners on reset ---
                 setExecutingSegmentation(false);
                 return;
             }
@@ -93,7 +97,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 if (!validateChessboardCorners(corners)) {
                     console.warn('Invalid chessboard corners selected');
                     setSquares([]);
-                    setExecutingSegmentation(false);
+                    setFinalBoardCorners([]); // --- NEW: Clear final corners on invalid ---
                     return;
                 }
 
@@ -101,6 +105,10 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 const cornersString = corners.map(({ x, y }) => `${Math.round(x)},${Math.round(y)}`);
                 console.log("ROI corners:", cornersString);
                 setROI(cornersString);
+
+                // --- NEW: Order and store the final corners for the visual effect ---
+                const orderedCorners = orderCorners(editingPoints.slice(0, 4));
+                setFinalBoardCorners(orderedCorners);
 
                 // Perform segmentation
                 const result = segmentChessboard(corners);
@@ -123,18 +131,17 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                     ].map(p => `${p.x},${p.y}`).join(' ')
                 }));
                 
-                const newBoardOutline = orderCorners(editingPoints).map(p => `${p[0]},${p[1]}`).join(' ');
+                const newBoardOutline = orderedCorners.map(p => `${p[0]},${p[1]}`).join(' ');
                 console.log("new board outline", newBoardOutline);
                 setBoardOutline(newBoardOutline);
                 setSquares(processedSquares);
                 setEditingPoints([]);
-                setExecutingSegmentation(false);
                 
                 console.log(`Generated ${processedSquares.length} chess squares`);
             } catch (error) {
                 console.error('Error in chessboard segmentation:', error);
                 setSquares([]);
-                setExecutingSegmentation(false);
+                setFinalBoardCorners([]); // --- NEW: Clear final corners on error ---
             }
         };
 
@@ -186,10 +193,25 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         top: `${boundingBox.y_min}px`,
         width: `${boundingBox.x_max - boundingBox.x_min}px`,
         height: `${boundingBox.y_max - boundingBox.y_min}px`,
-        pointerEvents: editing ? 'auto' : 'none',
+        pointerEvents: editing || executingSegmentation ? 'auto' : 'none', // Allow clicks during segmentation for effects
         zIndex: 1,
         cursor: editing ? 'crosshair' : 'default',
     };
+    
+    // --- NEW: Memoize points for the segmentation effect ---
+    const segmentationEffectPoints = useMemo(() => {
+        if (!executingSegmentation || finalBoardCorners.length !== 4 || !coord) return null;
+
+        const boardTopRight = finalBoardCorners[1]; // Get top-right from ordered corners
+        const viewboxTopRight: Point = [coord.x_max, 0];
+
+        return {
+            boardOutline: finalBoardCorners.map(p => `${p[0]},${p[1]}`).join(' '),
+            arrowStart: boardTopRight,
+            arrowEnd: viewboxTopRight,
+        };
+    }, [executingSegmentation, finalBoardCorners, coord]);
+
 
     return (
         <>
@@ -200,8 +222,72 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 onClick={handleSvgClick}
             >
 
+                {/* --- NEW: Segmentation loading/highlighting effect --- */}
+                {executingSegmentation && segmentationEffectPoints && (
+                    <g>
+                        <defs>
+                            {/* Define the arrowhead marker */}
+                            {/* <marker
+                                id="arrowhead"
+                                viewBox="0 0 10 10"
+                                refX="8"
+                                refY="5"
+                                markerWidth="6"
+                                markerHeight="6"
+                                orient="auto-start-reverse"
+                            >
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="#60a5fa" />
+                            </marker> */}
+                            {/* 
+                                Define the mask.
+                                The mask is white by default, making everything under it visible.
+                                We draw black shapes (the board and arrow) on the mask.
+                                The black areas become "holes", making the overlay transparent there.
+                            */}
+                            <mask id="segmentation-mask">
+                                <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                                <polygon points={segmentationEffectPoints.boardOutline} fill="black" />
+                                <line
+                                    x1={segmentationEffectPoints.arrowStart[0]}
+                                    y1={segmentationEffectPoints.arrowStart[1]}
+                                    x2={segmentationEffectPoints.arrowEnd[0]}
+                                    y2={segmentationEffectPoints.arrowEnd[1]}
+                                    stroke="black"
+                                    strokeWidth={8}
+                                    vectorEffect="non-scaling-stroke"
+                                />
+                            </mask>
+                        </defs>
+                        
+                        {/* The dark overlay that covers everything */}
+                        <rect
+                            x="0"
+                            y="0"
+                            width="100%"
+                            height="100%"
+                            fill="rgba(0, 20, 40, 0.7)"
+                            mask="url(#segmentation-mask)"
+                            style={{ pointerEvents: 'none' }}
+                        />
+                        
+                        {/* The visible arrow drawn on top of the overlay */}
+                        <line
+                            x1={segmentationEffectPoints.arrowStart[0]}
+                            y1={segmentationEffectPoints.arrowStart[1]}
+                            x2={segmentationEffectPoints.arrowEnd[0]}
+                            y2={segmentationEffectPoints.arrowEnd[1]}
+                            stroke="#60a5fa"
+                            strokeWidth={4}
+                            vectorEffect="non-scaling-stroke"
+                            markerEnd="url(#arrowhead)"
+                            style={{ pointerEvents: 'none'}}
+                        />
+                    </g>
+                )}
+
+
                 {/* Chessboard outline */}
-                {!isEditingContour && boardOutline && (
+                {!isEditingContour && boardOutline && !executingSegmentation && (
                     <polygon
                         points={boardOutline}
                         fill="transparent"
@@ -215,7 +301,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
 
                 {/* Chess squares */}
                 <g>
-                    {!isEditingContour && squares.map((square) => (
+                    {!isEditingContour && !executingSegmentation && squares.map((square) => (
                         <polygon
                             key={square.id}
                             points={square.pointsString}

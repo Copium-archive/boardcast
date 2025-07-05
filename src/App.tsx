@@ -26,6 +26,8 @@ interface AppContextType {
   setIsEditingContour: React.Dispatch<React.SetStateAction<boolean>>;
   executingSegmentation: boolean;
   setExecutingSegmentation: React.Dispatch<React.SetStateAction<boolean>>;
+  boardOrientation: number;
+  setBoardOrientation: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -42,6 +44,8 @@ export const AppContext = React.createContext<AppContextType>({
   setIsEditingContour: () => {},
   executingSegmentation: false,
   setExecutingSegmentation: () => {},
+  boardOrientation: 0,
+  setBoardOrientation: () => {},
 });
 
 function App() {
@@ -64,7 +68,7 @@ function App() {
   const { remaining } = useBatchEval({ fenQueue, setFenQueue, EvalCache});
   const sample_link = "http://asset.localhost/C%3A%5CUsers%5CUser%5CDownloads%5CKnight%20Sacrifice%20on%20the%20Streets_%20Can%20He%20Win%20This%20Blitz%20Chess%20Showdown%20%20%23streetchess%20%23blitzchess.mp4"
   const [videoPath, setVideoPath] = useState<string | null>(sample_link);
-  useEffect(() => {console.log(">> ", videoPath)}, [videoPath]);
+  // useEffect(() => {console.log(">> ", videoPath)}, [videoPath]);
   
   // Add ref for VideoContainer
   const videoContainerRef = useRef<VideoContainerRef>(null);
@@ -72,6 +76,8 @@ function App() {
   const [isEditingContour, setIsEditingContour] = useState(false);
   const [executingSegmentation, setExecutingSegmentation] = useState(false);
   
+  const [boardOrientation, setBoardOrientation] = useState<number>(0);
+
 
   // Monitor evaluation progress
   useEffect(() => {
@@ -219,7 +225,8 @@ useEffect(() => {
           positions, setPositions,
           EvalCache,
           isEditingContour, setIsEditingContour,
-          executingSegmentation, setExecutingSegmentation
+          executingSegmentation, setExecutingSegmentation,
+          boardOrientation, setBoardOrientation
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">

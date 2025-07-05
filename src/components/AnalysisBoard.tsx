@@ -1,9 +1,10 @@
 import React, { useRef } from 'react';
 import { Card } from '@/components/ui/card'; 
-import ChessBoard from './ChessBoard'; 
 import { AppContext } from '@/App'; 
 import { useContext, useEffect } from 'react';
+import ChessBoard from './ChessBoard'; 
 import History from './History';
+import BoardOrientation from './BoardOrientation';
 
 interface BoardContextType {
   currentFen: string;
@@ -16,7 +17,7 @@ export const BoardContext = React.createContext<BoardContextType>({
 });
 
 function AnalysisBoard() {
-  const {timestamps, currentMoveIndex, setCurrentMoveIndex, positions} = useContext(AppContext);
+  const {timestamps, currentMoveIndex, setCurrentMoveIndex, positions, executingSegmentation} = useContext(AppContext);
   const PgnOperation = useRef<string|null>(null);
   const currentFen = positions[currentMoveIndex];
 
@@ -33,8 +34,14 @@ function AnalysisBoard() {
   return (
     <Card className="w-1/4 flex flex-col p-0 gap-1">
       <BoardContext.Provider value={{ currentFen, PgnOperation }}>
+        {!executingSegmentation ? (
+          <>
         <ChessBoard />
-        <History/>
+        <History />
+          </>
+        ) : (
+          <BoardOrientation />
+        )}
       </BoardContext.Provider>
     </Card>
   );
