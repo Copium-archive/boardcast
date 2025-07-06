@@ -18,8 +18,9 @@ interface TimelineProps {
   initialSkipTime?: number;
 }
 
-const Timeline = ({ videoRef, duration, isEnabled = true, initialSkipTime }: TimelineProps) => {
+const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps) => {
   const { 
+    videoRef,
     currentTime, setCurrentTime, 
     isPlaying, setIsPlaying,
     checkpoints, setCheckpoints,

@@ -9,7 +9,7 @@ import { BoardContext } from './AnalysisBoard';
 import { AppContext } from '@/App';
 import ConfirmNewLine from './ConfirmNewLine';
 
-interface Move {
+interface ValidMove {
   index: number; 
   row: number; 
   col: number; 
@@ -24,7 +24,7 @@ interface Piece {
     row: number; 
     col: number; 
   };
-  validMoves: Move[]; 
+  validMoves: ValidMove[]; 
   display: string; 
 }
 

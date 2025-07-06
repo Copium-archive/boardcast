@@ -5,7 +5,10 @@ interface Point {
 
 interface ChessSquare {
   id: number;
-  notation: string;
+  square: {
+    row: number;
+    col: number;
+  };
   corners: {
     topLeft: Point;
     topRight: Point;
@@ -17,17 +20,6 @@ interface ChessSquare {
 interface ChessboardSegmentation {
   squares: ChessSquare[];
   boardCorners: Point[];
-}
-
-/**
- * Converts a square index to chess notation (A1, B2, etc.)
- */
-function indexToChessNotation(index: number): string {
-  const col = index % 8;
-  const row = Math.floor(index / 8);
-  const file = String.fromCharCode('A'.charCodeAt(0) + col);
-  const rank = 8 - row;
-  return `${file}${rank}`;
 }
 
 /**
@@ -206,7 +198,10 @@ export function segmentChessboard(corners: Point[]): ChessboardSegmentation {
       
       squares.push({
         id: index,
-        notation: indexToChessNotation(index),
+        square: {
+          row: row,
+          col: col
+        },
         corners: {
           topLeft: imageCorners[0],
           topRight: imageCorners[1],
@@ -260,4 +255,7 @@ const corners = [
 ];
 
 const result = segmentChessboard(corners);
+// Now each square will have:
+// - square.row: 0-7 (0 = top row, 7 = bottom row)
+// - square.col: 0-7 (0 = leftmost column, 7 = rightmost column)
 */

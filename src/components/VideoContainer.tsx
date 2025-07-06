@@ -51,6 +51,7 @@ interface VideoContextType {
   setCorner: React.Dispatch<React.SetStateAction<Offset>>;
   ROI: string[];
   setROI: React.Dispatch<React.SetStateAction<string[]>>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
 export const VideoContext = React.createContext<VideoContextType>({
@@ -67,10 +68,11 @@ export const VideoContext = React.createContext<VideoContextType>({
   setCorner: () => {},
   ROI: [],
   setROI: () => {},
+  videoRef: { current: null },
 });
 
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
-  const { positions, currentMoveIndex, setTimestamps, isEditingContour} = React.useContext(AppContext);
+  const { positions, currentMoveIndex, setTimestamps} = React.useContext(AppContext);
   const [corner, setCorner] = useState<Offset>({ x_offsetRatio: 0, y_offsetRatio: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
@@ -304,7 +306,8 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         createCheckpoint, 
         sizeRatio, setSizeRatio,
         corner, setCorner,
-        ROI, setROI
+        ROI, setROI,
+        videoRef
         }}>
         <div className="flex flex-col justify-center items-center w-full">
           <div className="w-full max-w-full aspect-video bg-black relative" onDoubleClick={handleOverlaying}>
@@ -322,10 +325,8 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
              (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ?
               (
               <InteractiveChessboard 
-                  // coord={{x_max: 1289, y_max: 663}}
                   coord={coord}
                   boundingBox={videoBoundingBox}
-                  editing={isEditingContour}
               />
             ) : null}
             

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useContext } from 'react';
+import React, { useState, useMemo, useEffect, useContext} from 'react';
 import { AppContext } from '@/App';
 import { VideoContext } from './VideoContainer';
 import { segmentChessboard, validateChessboardCorners } from '../lib/chessboard-segmentation';
@@ -8,7 +8,10 @@ type Point = [number, number];
 
 interface ProcessedSquare {
   id: number;
-  notation: string;
+  square: {
+    row: number;
+    col: number;
+  };
   corners: {
     topLeft: Point;
     topRight: Point;
@@ -33,7 +36,6 @@ interface Coord {
 interface InteractiveChessboardProps {
   coord: Coord;
   boundingBox: BoundingBox;
-  editing: boolean;
 }
 
 function orderCorners(corners: Point[]): Point[] {
@@ -57,18 +59,21 @@ function orderCorners(corners: Point[]): Point[] {
 const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     coord,
     boundingBox,
-    editing,
 }) => {
     const { isEditingContour, setIsEditingContour, executingSegmentation, setExecutingSegmentation } = useContext(AppContext);
-    const { setROI } = useContext(VideoContext);
+    const { videoRef, setROI, currentTime } = useContext(VideoContext);
     
+    const [hoveredSquareId, setHoveredSquareId] = useState<number | null>(null);
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
+    
     const [editingPoints, setEditingPoints] = useState<Point[]>([]);
-    const [boardOutline, setBoardOutline] = useState<string>("")
     const [squares, setSquares] = useState<ProcessedSquare[]>([]);
-    // --- NEW: State to hold the final corners for the segmentation effect ---
     const [finalBoardCorners, setFinalBoardCorners] = useState<Point[]>([]);
 
+    const boardOutline = useMemo(() => {
+        if (finalBoardCorners.length !== 4) return '';
+        return finalBoardCorners.map(p => `${p[0]},${p[1]}`).join(' ');
+    }, [finalBoardCorners]);
 
     // Process chessboard segmentation when we have 4 points
     useEffect(() => {
@@ -82,10 +87,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     useEffect(() => {
         const processChessboard = () => {
             if (editingPoints.length < 4) {
-                setSquares([]);
                 setEditingPoints([]);
-                setFinalBoardCorners([]); // --- NEW: Clear final corners on reset ---
-                setExecutingSegmentation(false);
                 return;
             }
 
@@ -96,8 +98,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 // Validate corners
                 if (!validateChessboardCorners(corners)) {
                     console.warn('Invalid chessboard corners selected');
-                    setSquares([]);
-                    setFinalBoardCorners([]); // --- NEW: Clear final corners on invalid ---
+                    setEditingPoints([]);
                     return;
                 }
 
@@ -106,17 +107,16 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 console.log("ROI corners:", cornersString);
                 setROI(cornersString);
 
-                // --- NEW: Order and store the final corners for the visual effect ---
+                // Order and store the final corners for the visual effect
                 const orderedCorners = orderCorners(editingPoints.slice(0, 4));
-                setFinalBoardCorners(orderedCorners);
-
+                
                 // Perform segmentation
                 const result = segmentChessboard(corners);
                 
                 // Convert to the format expected by the component
                 const processedSquares: ProcessedSquare[] = result.squares.map(square => ({
                     id: square.id,
-                    notation: square.notation,
+                    square: square.square,
                     corners: {
                         topLeft: [square.corners.topLeft.x, square.corners.topLeft.y],
                         topRight: [square.corners.topRight.x, square.corners.topRight.y],
@@ -131,17 +131,11 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                     ].map(p => `${p.x},${p.y}`).join(' ')
                 }));
                 
-                const newBoardOutline = orderedCorners.map(p => `${p[0]},${p[1]}`).join(' ');
-                console.log("new board outline", newBoardOutline);
-                setBoardOutline(newBoardOutline);
+                setFinalBoardCorners(orderedCorners);
                 setSquares(processedSquares);
                 setEditingPoints([]);
-                
-                console.log(`Generated ${processedSquares.length} chess squares`);
             } catch (error) {
                 console.error('Error in chessboard segmentation:', error);
-                setSquares([]);
-                setFinalBoardCorners([]); // --- NEW: Clear final corners on error ---
             }
         };
 
@@ -150,55 +144,69 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         }
     }, [isEditingContour]);
 
+    
     const viewBox = useMemo(() => {
         const { x_max, y_max } = coord;
         const width = x_max;
         const height = y_max;
-
+        
         if (!coord || width <= 0 || height <= 0) {
             return '0 0 0 0';
         }
-
+        
         return `0 0 ${width} ${height}`;
     }, [coord]);
-
+    
     const handleSquareClick = (square: ProcessedSquare) => {
-        if (!editing) {
-            setSelectedSquare(square);
-            console.log(`Selected square: ${square.notation}`);
+        if (!isEditingContour) {
+            videoRef.current?.pause();
+            if(selectedSquare === null) {
+                setSelectedSquare(square);
+            }
+            else {
+                setSelectedSquare(null);
+            }
         }
     };
-
+    
     const handleSvgClick = (event: React.MouseEvent<SVGSVGElement>) => {
-        if (!editing) return;
-
+        if (!isEditingContour) return;
+        
+        videoRef.current?.pause(); 
         const svg = event.currentTarget;
         const pt = svg.createSVGPoint();
         pt.x = event.clientX;
         pt.y = event.clientY;
-
+        
         const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-
+        
         // Ensure coordinates are non-negative
         const x = Math.max(0, svgP.x);
         const y = Math.max(0, svgP.y);
-
+        
         const newPoint: Point = [x, y];
         setEditingPoints(prev => [...prev, newPoint]);
     };
-
+    
+    useEffect(() => {
+        if (!videoRef.current?.paused) {
+            setEditingPoints([]);
+            setSelectedSquare(null);
+        }
+    }, [currentTime, videoRef]);    
+    
     const svgStyle: React.CSSProperties = {
         position: 'fixed',
         left: `${boundingBox.x_min}px`,
         top: `${boundingBox.y_min}px`,
         width: `${boundingBox.x_max - boundingBox.x_min}px`,
         height: `${boundingBox.y_max - boundingBox.y_min}px`,
-        pointerEvents: editing || executingSegmentation ? 'auto' : 'none', // Allow clicks during segmentation for effects
+        pointerEvents: isEditingContour || executingSegmentation ? 'auto' : 'none',
         zIndex: 1,
-        cursor: editing ? 'crosshair' : 'default',
+        cursor: isEditingContour ? 'crosshair' : 'default',
     };
     
-    // --- NEW: Memoize points for the segmentation effect ---
+    // Memoize points for the segmentation effect
     const segmentationEffectPoints = useMemo(() => {
         if (!executingSegmentation || finalBoardCorners.length !== 4 || !coord) return null;
 
@@ -206,12 +214,10 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         const viewboxTopRight: Point = [coord.x_max+2, (coord.x_max / 10)];
 
         return {
-            boardOutline: finalBoardCorners.map(p => `${p[0]},${p[1]}`).join(' '),
             arrowStart: viewboxTopRight,
             arrowEnd: boardTopRight,
         };
     }, [executingSegmentation, finalBoardCorners, coord]);
-
 
     return (
         <>
@@ -222,7 +228,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 onClick={handleSvgClick}
             >
 
-                {/* --- NEW: Segmentation loading/highlighting effect --- */}
+                {/* Segmentation loading/highlighting effect */}
                 {executingSegmentation && segmentationEffectPoints && (
                     <g>
                         <defs>
@@ -246,7 +252,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                             */}
                             <mask id="segmentation-mask">
                                 <rect x="0" y="0" width="100%" height="100%" fill="white" />
-                                <polygon points={segmentationEffectPoints.boardOutline} fill="black" />
+                                <polygon points={boardOutline} fill="black" />
                             </mask>
                         </defs>
                         
@@ -272,11 +278,10 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                             vectorEffect="non-scaling-stroke"
                             strokeDasharray="5,5"
                             markerEnd="url(#arrowhead)"
-                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 1px #fff)' }}
+                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 2px #fff)' }}
                         />
                     </g>
                 )}
-
 
                 {/* Chessboard outline */}
                 {!isEditingContour && boardOutline && !executingSegmentation && (
@@ -287,31 +292,39 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                         strokeWidth={2}
                         vectorEffect="non-scaling-stroke"
                         strokeDasharray="5,5"
-                        style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 2px #fff)' }}
+                        style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 1px #fff)' }}
                     />
                 )}
 
                 {/* Chess squares */}
                 <g>
-                    {!isEditingContour && !executingSegmentation && squares.map((square) => (
-                        <polygon
-                            key={square.id}
-                            points={square.pointsString}
-                            fill="transparent"
-                            stroke={selectedSquare?.id === square.id ? '#3b82f6' : '#60a5fa'}
-                            strokeWidth={selectedSquare?.id === square.id ? 4 : 0}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleSquareClick(square);
-                            }}
-                            className="cursor-pointer"
-                            style={{ 
-                                pointerEvents: editing ? 'none' : 'auto',
-                                cursor: editing ? 'crosshair' : 'pointer',
-                                vectorEffect: "non-scaling-stroke",
-                            }}
-                        />
-                    ))}
+                    {!isEditingContour && !executingSegmentation && squares.map((square) => {
+                        const isSelected = selectedSquare?.id === square.id;
+                        const isHovered = hoveredSquareId === square.id;
+                        return (
+                            <polygon
+                                key={square.id}
+                                points={square.pointsString}
+                                fill="transparent"
+                                stroke={isSelected ? '#3b82f6' : '#60a5fa'}
+                                strokeWidth={(isSelected || isHovered) ? 4 : 0}
+                                strokeDasharray={(isHovered && !isSelected) ? '8,4' : '0'}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSquareClick(square);
+                                }}
+                                onMouseEnter={() => setHoveredSquareId(square.id)}
+                                onMouseLeave={() => setHoveredSquareId(null)}
+                                className="cursor-pointer"
+                                style={{
+                                    pointerEvents: isEditingContour ? 'none' : 'auto',
+                                    cursor: isEditingContour ? 'crosshair' : 'pointer',
+                                    vectorEffect: "non-scaling-stroke",
+                                    filter: isHovered ? 'drop-shadow(0 0 1px #fff)' : 'none',
+                                }}
+                            />
+                        );
+                    })}
                 </g>
                 
                 {/* Corner points being edited */}
@@ -357,7 +370,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                             strokeWidth={4}
                             strokeDasharray="8,4"
                             vectorEffect="non-scaling-stroke"
-                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 2px #fff)' }}
+                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 1px #fff)' }}
                         />
                         );
                     })}
@@ -371,7 +384,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                         strokeWidth={4}
                         strokeDasharray="8,4"
                         vectorEffect="non-scaling-stroke"
-                        style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 2px #fff)' }}
+                        style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 1px #fff)' }}
                         />
                     )}
                     </g>
