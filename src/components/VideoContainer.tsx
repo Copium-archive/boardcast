@@ -52,6 +52,8 @@ interface VideoContextType {
   ROI: string[];
   setROI: React.Dispatch<React.SetStateAction<string[]>>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  overlays: OverlayType[];
+  setOverlays: React.Dispatch<React.SetStateAction<OverlayType[]>>;
 }
 
 export const VideoContext = React.createContext<VideoContextType>({
@@ -69,6 +71,8 @@ export const VideoContext = React.createContext<VideoContextType>({
   ROI: [],
   setROI: () => {},
   videoRef: { current: null },
+  overlays: [{ timestamp: -1 }],
+  setOverlays: () => {},
 });
 
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
@@ -298,6 +302,14 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     setCurrentOverlayId(0);
   }
 
+  const getPreviousFen = (): string | undefined => {
+    const currentOverlay = overlays[currentOverlayId];
+    if (currentOverlay && currentOverlay.timestamp < currentTime) {
+      return currentOverlay.fen;
+    }
+    return overlays[currentOverlayId - 1]?.fen;
+  }
+
   return (
       <VideoContext.Provider value={{ 
         isPlaying, setIsPlaying,
@@ -306,6 +318,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         createCheckpoint, 
         sizeRatio, setSizeRatio,
         corner, setCorner,
+        overlays, setOverlays,
         ROI, setROI,
         videoRef
         }}>
@@ -327,6 +340,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               <InteractiveChessboard 
                   coord={coord}
                   boundingBox={videoBoundingBox}
+                  getPreviousFen={getPreviousFen}
               />
             ) : null}
             

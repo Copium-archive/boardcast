@@ -8,11 +8,11 @@ import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Plus } from 'lucide-r
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { BoardContext } from './AnalysisBoard';
+// import { BoardContext } from './AnalysisBoard';
 
 const History: React.FC = () => {
   const {timestamps, setTimestamps, currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions } = useContext(AppContext);
-  const { PgnOperation } = useContext(BoardContext);
+  // const { PgnOperation } = useContext(BoardContext);
   // Derive currentTimestamp from timestamps[currentMoveIndex]
   const currentTimestamp = useMemo(() => {
     const ts = timestamps[currentMoveIndex];
@@ -65,7 +65,9 @@ const History: React.FC = () => {
           setMoves(moves.slice(0, -1));
           setPositions(positions.slice(0, -1));
           setTimestamps(timestamps.slice(0, -1));
-          PgnOperation.current = 'remove';
+          setCurrentMoveIndex((prevIndex) => {
+            return Math.max(0, prevIndex - 1);
+          });
         }
       }
     };
@@ -193,7 +195,7 @@ const History: React.FC = () => {
     setMoves(tempMoves);
     setPositions(tempPositions);
     setTimestamps(Array(tempPositions.length).fill(null));    
-    PgnOperation.current = 'import'
+    setCurrentMoveIndex(0);
     
     // Reset dialog state if needed
     if (shouldCloseDialog) {

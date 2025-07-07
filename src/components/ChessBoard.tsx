@@ -130,8 +130,8 @@ function inferFen(fenString: string) {
 
 export default function ChessBoard() {
   const boardColors = createChessboardColors();
-  const {setTimestamps, currentMoveIndex, setPositions, moves, setMoves} = useContext(AppContext);
-  const {currentFen, PgnOperation} = useContext(BoardContext);
+  const {setTimestamps, currentMoveIndex, setCurrentMoveIndex, setPositions, moves, setMoves} = useContext(AppContext);
+  const {currentFen} = useContext(BoardContext);
   const {evaluation, bestMove} = useEval({ currentFen});  
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [highlight, setHighlight] = useState(
@@ -186,7 +186,7 @@ export default function ChessBoard() {
       newTimestamps.push(null);
       return newTimestamps;
     });
-    PgnOperation.current = 'append';
+    setCurrentMoveIndex((prevIndex) => prevIndex + 1);
   }
 
   const isLast = () => {

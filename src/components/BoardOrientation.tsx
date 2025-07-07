@@ -108,14 +108,19 @@ function BoardOrientation() {
                     row.map((color, colIndex) => {
                         const squareIndex = rowIndex * 8 + colIndex;
                         
+                        // Apply rotation to square position
+                        const rotatedSquarePos = rotatePosition(rowIndex, colIndex, boardOrientation);
+                        
                         return (
                         <div
                             key={squareIndex}
-                            className="w-1/8 h-1/8"
+                            className="w-1/8 h-1/8 absolute"
                             style={{ 
                             backgroundColor: color, 
                             boxSizing: 'border-box',
-                            boxShadow: `0px 0px 0px 5px ${color} inset` 
+                            boxShadow: `0px 0px 0px 5px ${color} inset`,
+                            left: `${rotatedSquarePos.col * 12.5}%`,
+                            top: `${rotatedSquarePos.row * 12.5}%`,
                             }}
                         ></div>
                         );

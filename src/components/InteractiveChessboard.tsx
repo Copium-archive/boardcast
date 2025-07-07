@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useContext} from 'react';
 import { AppContext } from '@/App';
 import { VideoContext } from './VideoContainer';
 import { segmentChessboard, validateChessboardCorners } from '../lib/chessboard-segmentation';
-
+import { Chess, Square } from 'chess.js';
 
 type Point = [number, number];
 
@@ -36,7 +36,28 @@ interface Coord {
 interface InteractiveChessboardProps {
   coord: Coord;
   boundingBox: BoundingBox;
+  getPreviousFen: () => string | undefined;
 }
+
+function algebraicNotation(row: number, col: number): Square {
+  const file = String.fromCharCode('a'.charCodeAt(0) + col);
+  const rank = 8 - row;
+  return (file + rank) as Square;
+}
+
+function rotatePosition(row: number, col: number, orientation: number) {
+    let newRow = row;
+    let newCol = col;
+
+    for (let i = 0; i < orientation; i++) {
+        const temp = newRow;
+        newRow = 7 - newCol;
+        newCol = temp;
+    }
+
+    return { row: newRow, col: newCol };
+}
+
 
 function orderCorners(corners: Point[]): Point[] {
     if (corners.length !== 4) {
@@ -59,9 +80,16 @@ function orderCorners(corners: Point[]): Point[] {
 const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     coord,
     boundingBox,
+    getPreviousFen,
 }) => {
-    const { isEditingContour, setIsEditingContour, executingSegmentation, setExecutingSegmentation } = useContext(AppContext);
-    const { videoRef, setROI, currentTime } = useContext(VideoContext);
+    const { isEditingContour, setIsEditingContour, 
+        executingSegmentation, setExecutingSegmentation, 
+        boardOrientation,
+        setCurrentMoveIndex,
+        positions, setPositions, 
+        moves, setMoves, setTimestamps,
+    } = useContext(AppContext);
+    const { videoRef, setROI, currentTime, setOverlays, createCheckpoint } = useContext(VideoContext);
     
     const [hoveredSquareId, setHoveredSquareId] = useState<number | null>(null);
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
@@ -74,6 +102,43 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         if (finalBoardCorners.length !== 4) return '';
         return finalBoardCorners.map(p => `${p[0]},${p[1]}`).join(' ');
     }, [finalBoardCorners]);
+
+    const appendMove = (newPosition: Chess, prefixLength?: number) => {
+        if(!videoRef.current) {
+            return;
+        }
+        // Determine how many moves/positions to keep as prefix
+        const keepCount = prefixLength !== undefined ? prefixLength : moves.length;
+        setPositions((prevPositions) => {
+            const newPositions = prevPositions.slice(0, keepCount + 1);
+            newPositions.push(newPosition.fen());
+            return newPositions;
+        });
+        setMoves((prevMoves) => {
+            const newMoves = prevMoves.slice(0, keepCount);
+            newMoves.push(newPosition.history({ verbose: true }).slice(-1)[0].san);
+            return newMoves;
+        });
+        setTimestamps((prevTimestamps) => {
+            const newTimestamps = prevTimestamps.slice(0, keepCount + 1);
+            newTimestamps.push(currentTime);
+            return newTimestamps;
+        });
+        setOverlays((prev = []) => {
+            const newOverlay = {
+                fen: newPosition.fen(),
+                moveIndex : keepCount+1, 
+                timestamp: currentTime,
+            };
+            const updated = [...prev, newOverlay];
+            updated.sort((a, b) => a.timestamp - b.timestamp);
+            return updated;
+        });
+        createCheckpoint(currentTime)
+        setCurrentMoveIndex(positions.length);
+
+        console.log("New position appended:", positions.length);
+    }
 
     // Process chessboard segmentation when we have 4 points
     useEffect(() => {
@@ -164,6 +229,17 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 setSelectedSquare(square);
             }
             else {
+                const previousFen = getPreviousFen();
+                if (!previousFen) {
+                    return;
+                }
+                const to_square = rotatePosition(selectedSquare.square.row, selectedSquare.square.col, boardOrientation);
+                const from_square = rotatePosition(square.square.row, square.square.col, boardOrientation);
+                const newPosition = new Chess(previousFen);
+                const from = algebraicNotation(from_square.row, from_square.col);
+                const to = algebraicNotation(to_square.row, to_square.col);
+                newPosition.move({ from, to, promotion: 'q' });
+                appendMove(newPosition);
                 setSelectedSquare(null);
             }
         }
