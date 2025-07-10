@@ -5,6 +5,8 @@ use std::process::Command;
 use tauri::command;
 use serde_json;
 
+mod hello;
+
 // Import and initialize Tauri Dialog plugin (v2)
 use tauri_plugin_dialog::init as dialog_init;
 
@@ -73,6 +75,7 @@ fn run_windows_script(script: String, cli_args: Vec<String>) -> Result<String, S
     }
 }
 
+
 fn run_wsl_script(script: String, cli_args: Vec<String>) -> Result<String, String> {
     let wsl_path = "/mnt/c/Users/User/Documents/sample_script";
 
@@ -107,7 +110,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(dialog_init()) // Initialize dialog plugin
-        .invoke_handler(tauri::generate_handler![run_python_script])
+        .invoke_handler(tauri::generate_handler![run_python_script, hello::export])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

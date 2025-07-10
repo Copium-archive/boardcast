@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, Loader2 } from "lucide-react";
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { invoke, convertFileSrc} from '@tauri-apps/api/core';
 import { writeTextFile} from '@tauri-apps/plugin-fs';
 import AnalysisBoard from "./components/AnalysisBoard";
@@ -73,7 +73,7 @@ function App() {
   // Add ref for VideoContainer
   const videoContainerRef = useRef<VideoContainerRef>(null);
 
-  const [isEditingContour, setIsEditingContour] = useState(false);
+  const [isEditingContour, setIsEditingContour] = useState(true);
   const [executingSegmentation, setExecutingSegmentation] = useState(false);
   
   const [boardOrientation, setBoardOrientation] = useState<number>(0);
@@ -93,79 +93,79 @@ function App() {
     }
   }, [remaining, fenQueue, isExporting, exportTotal]);
 
-useEffect(() => {
-  if (!shouldCompleteExport) return;
-  
-  // Get board size from VideoContainer
-  const boardSize = videoContainerRef.current?.calculateBoardSize();
-  const corner = videoContainerRef.current?.calculateOffset();
-  
-  // Prepare export data with evaluations and board size
-  const exportData = {
-    framePerMove: 5,
-    timePerMove: 0.2,
-    positions,
-    moves: [null, ...moves],
-    x_offset: corner?.x || 0,
-    y_offset: corner?.y || 0,
-    timestamps,
-    boardSize,
-    evaluations: positions.map(fen => ({
-      evaluation: fen in EvalCache.current ? EvalCache.current[fen].evaluation : null,
-      bestMove: fen in EvalCache.current ? EvalCache.current[fen].bestMove : null
-    }))
-  };
-
-  const customPath = "C:/Users/User/Documents/boardcast/remotion/export.json";
-
-  writeTextFile(customPath, JSON.stringify(exportData, null, 2))
-    .then(async () => {
-      console.log("Exported data with evaluations to:", customPath);
-      setIsExportComplete(true);
-
-      // Run the combined video processing script
-      try {
-        console.log("Starting video processing pipeline...");
-        
-        const result = await invoke<string>("run_python_script", {
-          script: "export.py", // Your new combined script name
-          cliArgs: [],
-          osEnv: "Windows"
-        });
-
-        console.log("Video processing pipeline completed");
-        console.log("Python script output:", result);
-
-        // Try to parse the result as JSON to get structured feedback
-        try {
-          const parsedResult = JSON.parse(result);
-          
-          if (parsedResult.success) {
-            setOutputLog(`✅ Video processing completed successfully!\n\n${parsedResult.message || ''}\n\nRender Output:\n${parsedResult.render_output || 'No render output'}\n\nOverlay Output:\n${parsedResult.overlay_output || 'No overlay output'}`);
-          } else {
-            setOutputLog(`❌ Video processing failed:\n\n${parsedResult.error}\n\nRender Output:\n${parsedResult.render_output || 'No render output'}\n\nOverlay Output:\n${parsedResult.overlay_output || 'No overlay output'}`);
-          }
-        } catch {
-          // If result is not JSON, treat it as plain text output
-          setOutputLog(result);
-        }
-
-      } catch (err) {
-        console.error("Video processing pipeline error:", err);
-        setOutputLog(`❌ Pipeline Error: ${String(err)}`);
-      }
-    })
-    .catch((error) => {
-      console.error("Failed to export data:", error);
-      // Reset export state on error
-      setIsExporting(false);
-      setExportProgress(0);
-      setExportTotal(0);
-      setFenQueue([]);
-      setShouldCompleteExport(false);
-    });
+  useEffect(() => {
+    if (!shouldCompleteExport) return;
     
-}, [shouldCompleteExport]);
+    // Get board size from VideoContainer
+    const boardSize = videoContainerRef.current?.calculateBoardSize();
+    const corner = videoContainerRef.current?.calculateOffset();
+    
+    // Prepare export data with evaluations and board size
+    const exportData = {
+      framePerMove: 5,
+      timePerMove: 0.2,
+      positions,
+      moves: [null, ...moves],
+      x_offset: corner?.x || 0,
+      y_offset: corner?.y || 0,
+      timestamps,
+      boardSize,
+      evaluations: positions.map(fen => ({
+        evaluation: fen in EvalCache.current ? EvalCache.current[fen].evaluation : null,
+        bestMove: fen in EvalCache.current ? EvalCache.current[fen].bestMove : null
+      }))
+    };
+
+    const customPath = "C:/Users/User/Documents/boardcast/remotion/export.json";
+
+    writeTextFile(customPath, JSON.stringify(exportData, null, 2))
+      .then(async () => {
+        console.log("Exported data with evaluations to:", customPath);
+        setIsExportComplete(true);
+
+        // Run the combined video processing script
+        try {
+          console.log("Starting video processing pipeline...");
+          
+          const result = await invoke<string>("run_python_script", {
+            script: "export.py", // Your new combined script name
+            cliArgs: [],
+            osEnv: "Windows"
+          });
+
+          console.log("Video processing pipeline completed");
+          console.log("Python script output:", result);
+
+          // Try to parse the result as JSON to get structured feedback
+          try {
+            const parsedResult = JSON.parse(result);
+            
+            if (parsedResult.success) {
+              setOutputLog(`✅ Video processing completed successfully!\n\n${parsedResult.message || ''}\n\nRender Output:\n${parsedResult.render_output || 'No render output'}\n\nOverlay Output:\n${parsedResult.overlay_output || 'No overlay output'}`);
+            } else {
+              setOutputLog(`❌ Video processing failed:\n\n${parsedResult.error}\n\nRender Output:\n${parsedResult.render_output || 'No render output'}\n\nOverlay Output:\n${parsedResult.overlay_output || 'No overlay output'}`);
+            }
+          } catch {
+            // If result is not JSON, treat it as plain text output
+            setOutputLog(result);
+          }
+
+        } catch (err) {
+          console.error("Video processing pipeline error:", err);
+          setOutputLog(`❌ Pipeline Error: ${String(err)}`);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to export data:", error);
+        // Reset export state on error
+        setIsExporting(false);
+        setExportProgress(0);
+        setExportTotal(0);
+        setFenQueue([]);
+        setShouldCompleteExport(false);
+      });
+      
+  }, [shouldCompleteExport]);
 
   // Handle finish button click
   const handleFinishExport = () => {
@@ -215,6 +215,39 @@ useEffect(() => {
     setFenQueue(positionsToEvaluate);
   };
 
+  const handleInvokeSample = async () => {
+    const saved = await save({
+      defaultPath: "export.mp4", 
+      filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'ogg'] }]
+    });
+
+    if (typeof saved === 'string') {
+      const boardSize = videoContainerRef.current?.calculateBoardSize();
+      const corner = videoContainerRef.current?.calculateOffset();
+      
+      const exportData = {
+        framePerMove: 5,
+        timePerMove: 0.2,
+        positions,
+        moves: [null, ...moves],
+        x_offset: corner?.x || 0,
+        y_offset: corner?.y || 0,
+        timestamps,
+        boardSize,
+        evaluations: positions.map(fen => ({
+          evaluation: fen in EvalCache.current ? EvalCache.current[fen].evaluation : null,
+          bestMove: fen in EvalCache.current ? EvalCache.current[fen].bestMove : null
+        }))
+      };
+      const result = await invoke("export", {
+        data: exportData
+      });
+      console.log(result);
+    } else {
+      console.log("File save cancelled");
+    }
+  }
+
   return (
     <div className="w-full h-screen flex flex-col bg-muted p-2 gap-0">
       <div className="flex flex-1 gap-2">
@@ -231,6 +264,7 @@ useEffect(() => {
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">
             <div className="flex gap-2">
+
               <Button onClick={handleLoadVideo}>Load Local Video</Button>
               <Button 
                 onClick={handleExport} 
@@ -243,7 +277,7 @@ useEffect(() => {
                 onClick={() => setIsEditingContour(!isEditingContour)} 
                 variant="outline"
                 disabled={executingSegmentation}
-              >
+                >
                 {executingSegmentation ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -255,6 +289,7 @@ useEffect(() => {
                   </>
                 )}
               </Button>
+              <Button onClick={handleInvokeSample}>sample invoke button</Button>
             </div>
             <VideoContainer ref={videoContainerRef} videoPath={videoPath} />
           </Card>

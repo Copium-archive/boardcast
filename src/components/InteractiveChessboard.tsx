@@ -229,6 +229,10 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 setSelectedSquare(square);
             }
             else {
+                if(selectedSquare.id === square.id) {
+                    setSelectedSquare(null);
+                    return;
+                }
                 const previousFen = getPreviousFen();
                 if (!previousFen) {
                     return;
