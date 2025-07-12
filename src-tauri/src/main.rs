@@ -9,6 +9,8 @@ mod hello;
 
 // Import and initialize Tauri Dialog plugin (v2)
 use tauri_plugin_dialog::init as dialog_init;
+// Import shell plugin for sidecar commands
+use tauri_plugin_shell::ShellExt;
 
 #[derive(serde::Deserialize)]
 pub enum OsEnvironment {
@@ -19,6 +21,26 @@ pub enum OsEnvironment {
 impl Default for OsEnvironment {
     fn default() -> Self {
         OsEnvironment::Windows
+    }
+}
+
+#[command]
+async fn run_ffmpeg_version(app: tauri::AppHandle) -> Result<String, String> {
+    // Get the sidecar command for ffmpeg using the shell plugin
+    let sidecar_command = app.shell().sidecar("ffmpeg")
+        .map_err(|e| format!("Failed to create sidecar command: {}", e))?;
+    
+    // Execute ffmpeg with -version flag
+    let output = sidecar_command
+        .args(&["-version"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute ffmpeg: {}", e))?;
+    
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
     }
 }
 
@@ -109,8 +131,9 @@ fn run_wsl_script(script: String, cli_args: Vec<String>) -> Result<String, Strin
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_shell::init()) // Initialize shell plugin
         .plugin(dialog_init()) // Initialize dialog plugin
-        .invoke_handler(tauri::generate_handler![run_python_script, hello::export])
+        .invoke_handler(tauri::generate_handler![run_python_script, run_ffmpeg_version, hello::export])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -69,7 +69,7 @@ def render_chess_animation():
             'error': error_msg
         }
 
-def get_multiple_overlay_command(overlay_segs, bg_segs, xy_offset=None, background_file="background.mp4", overlay_file="chess-animation.mp4", output_file="output.mp4"):
+def get_multiple_overlay_command(overlay_segs, bg_segs, xy_offset=None, background_file="cac.mp4", overlay_file="buoi.mp4", output_file="output.mp4"):
     """
     Generate a single ffmpeg command to apply multiple overlays sequentially at a fixed position.
 
