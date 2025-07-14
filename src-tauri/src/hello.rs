@@ -162,18 +162,18 @@ fn get_multiple_overlay_command(
     let root_dir = current_dir.parent()
         .ok_or("Failed to get parent directory")?;
     
-    // Build absolute paths
+    // Build paths: use provided paths for background and output, keep overlay hardcoded
     let background_file = background_file
-        .map(|f| root_dir.join("sample_exporting").join(f).to_string_lossy().to_string())
+        .map(|f| f.to_string())
         .unwrap_or_else(|| root_dir.join("sample_exporting").join("background.mp4").to_string_lossy().to_string());
     let overlay_file = overlay_file
         .map(|f| root_dir.join("sample_exporting").join(f).to_string_lossy().to_string())
         .unwrap_or_else(|| root_dir.join("sample_exporting").join("chess-animation.mp4").to_string_lossy().to_string());
     let output_file = output_file
-        .map(|f| root_dir.join("sample_exporting").join(f).to_string_lossy().to_string())
+        .map(|f| f.to_string())
         .unwrap_or_else(|| root_dir.join("sample_exporting").join("output.mp4").to_string_lossy().to_string());
 
-    println!("Using absolute paths:");
+    println!("Using paths:");
     println!("  Background: {}", background_file);
     println!("  Overlay: {}", overlay_file);
     println!("  Output: {}", output_file);
@@ -403,13 +403,23 @@ pub async fn export(app: tauri::AppHandle, data: Value) -> Result<String, String
         Ok((overlay_segs, bg_segs, xy_offset)) => {
             println!("Overlay data processed successfully!");
             
+            // Extract videoPath and outputPath from the JSON data
+            let video_path = data.get("videoPath")
+                .and_then(|v| v.as_str());
+            let output_path = data.get("outputPath")
+                .and_then(|v| v.as_str());
+            
+            println!("Using paths from JSON:");
+            println!("  Video path (background): {:?}", video_path);
+            println!("  Output path: {:?}", output_path);
+            
             match get_multiple_overlay_command(
                 &overlay_segs,
                 &bg_segs,
                 Some(xy_offset),
-                None,
-                None,
-                None
+                video_path,        // Use videoPath as background_file
+                None,             // Keep overlay_file hardcoded (None means use default)
+                output_path       // Use outputPath as output_file
             ) {
                 Ok(ffmpeg_args) => {
                     println!("Generated FFmpeg arguments: {:?}", ffmpeg_args);
@@ -424,6 +434,8 @@ pub async fn export(app: tauri::AppHandle, data: Value) -> Result<String, String
                                     "overlay_segments": overlay_segs,
                                     "background_segments": bg_segs,
                                     "xy_offset": xy_offset,
+                                    "video_path": video_path,
+                                    "output_path": output_path,
                                     "ffmpeg_command": format!("ffmpeg {}", ffmpeg_args.join(" ")),
                                     "ffmpeg_output": ffmpeg_result.output,
                                     "message": "Chess animation rendered, overlay data processed, and FFmpeg command executed successfully"

@@ -66,8 +66,10 @@ function App() {
   // State for batch evaluation queue
   const [fenQueue, setFenQueue] = useState<string[]>([]);
   const { remaining } = useBatchEval({ fenQueue, setFenQueue, EvalCache});
-  const sample_link = "http://asset.localhost/C%3A%5CUsers%5CUser%5CDownloads%5CKnight%20Sacrifice%20on%20the%20Streets_%20Can%20He%20Win%20This%20Blitz%20Chess%20Showdown%20%20%23streetchess%20%23blitzchess.mp4"
-  const [videoPath, setVideoPath] = useState<string | null>(sample_link);
+  const [videoPath, setVideoPath] = useState<string | null>(
+    "C:\\Users\\User\\Downloads\\Knight Sacrifice on the Streets_ Can He Win This Blitz Chess Showdown  #streetchess #blitzchess.mp4"
+  );
+  const decodedVideoPath = videoPath ? convertFileSrc(videoPath) : null;  
   // useEffect(() => {console.log(">> ", videoPath)}, [videoPath]);
   
   // Add ref for VideoContainer
@@ -184,9 +186,7 @@ function App() {
 
     if (typeof selected === 'string') {
       // Safely convert the local file path using Tauri's convertFileSrc
-      const safeVideoUrl = convertFileSrc(selected);
-      console.log("Selected video path:", safeVideoUrl);
-      setVideoPath(safeVideoUrl);
+      setVideoPath(selected);
     }
   };
 
@@ -226,6 +226,8 @@ function App() {
       const corner = videoContainerRef.current?.calculateOffset();
       
       const exportData = {
+        videoPath: videoPath,
+        outputPath: saved, 
         framePerMove: 5,
         timePerMove: 0.2,
         positions,
@@ -291,7 +293,7 @@ function App() {
               </Button>
               <Button onClick={handleInvokeSample}>sample invoke button</Button>
             </div>
-            <VideoContainer ref={videoContainerRef} videoPath={videoPath} />
+            <VideoContainer ref={videoContainerRef} videoPath={decodedVideoPath} />
           </Card>
           <AnalysisBoard />
           
