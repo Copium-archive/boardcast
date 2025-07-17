@@ -28,6 +28,7 @@ interface AppContextType {
   setExecutingSegmentation: React.Dispatch<React.SetStateAction<boolean>>;
   boardOrientation: number;
   setBoardOrientation: React.Dispatch<React.SetStateAction<number>>;
+  moveOverlay: (timestamp: number | null, amount: number) => void;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -46,6 +47,7 @@ export const AppContext = React.createContext<AppContextType>({
   setExecutingSegmentation: () => {},
   boardOrientation: 0,
   setBoardOrientation: () => {},
+  moveOverlay: () => {}
 });
 
 function App() {
@@ -261,7 +263,8 @@ function App() {
           EvalCache,
           isEditingContour, setIsEditingContour,
           executingSegmentation, setExecutingSegmentation,
-          boardOrientation, setBoardOrientation
+          boardOrientation, setBoardOrientation,
+          moveOverlay: (timestamp, amount) => { videoContainerRef.current?.moveOverlay(timestamp, amount) }
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">

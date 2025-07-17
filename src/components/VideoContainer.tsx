@@ -35,6 +35,7 @@ interface BoundingBox {
 export interface VideoContainerRef {
   calculateBoardSize: () => number | undefined;
   calculateOffset: () => Coordinate | undefined;
+  moveOverlay: (timestamp: number | null, amount: number) => void;
 }
 
 interface VideoContextType {
@@ -97,6 +98,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
 
   const [ROI, setROI] = useState<string[]>([]);
   const [coord, setCoord] = useState<{x_max: number, y_max:number}>({x_max : 0, y_max : 0});
+  const isEnabled = (isVideoLoaded && !!videoPath); 
 
   const calculateBoardSize = () => {
     if(!videoRef.current) return;
@@ -114,11 +116,44 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     return { x, y };
   }
 
-  // Expose calculateBoardSize to parent component
   useImperativeHandle(ref, () => ({
     calculateBoardSize,
     calculateOffset,
+    moveOverlay
   }));
+
+  const moveOverlay = (timestamp: number | null, amount: number) => {
+    if (!videoRef.current || !isEnabled) return;
+    if(timestamp === null) return;
+    
+    const newTimestamp = timestamp + amount;
+    if(newTimestamp < 0 || newTimestamp > duration) return;
+
+    setOverlays((prevOverlays) => {
+      return prevOverlays.map(
+        (overlay) => {
+          if(overlay.timestamp === timestamp) {
+            return {
+              ...overlay,
+              timestamp: newTimestamp
+            }
+          }
+          return overlay;
+        }
+      )
+    })
+    setCheckpoints((prevCheckpoints) => {
+      return prevCheckpoints.map(
+        (checkpoint) => {
+          if(checkpoint === timestamp) {
+            return newTimestamp;
+          }
+          return checkpoint;
+        }
+      )
+    })
+    videoRef.current.currentTime = newTimestamp;
+  }
 
   const createCheckpoint = (timestamp: number) => {
     if (!isVideoLoaded && !!videoPath) return;
@@ -367,7 +402,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               <Timeline 
                 videoRef={videoRef} 
                 duration={duration} 
-                isEnabled={isVideoLoaded && !!videoPath} 
+                isEnabled={isEnabled} 
               />
           </div>
         </div>

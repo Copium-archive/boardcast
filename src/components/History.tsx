@@ -8,20 +8,17 @@ import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Plus } from 'lucide-r
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-// import { BoardContext } from './AnalysisBoard';
 
 const History: React.FC = () => {
-  const {timestamps, setTimestamps, currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions } = useContext(AppContext);
-  // const { PgnOperation } = useContext(BoardContext);
-  // Derive currentTimestamp from timestamps[currentMoveIndex]
+  const {timestamps, setTimestamps, currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions, moveOverlay} = useContext(AppContext);
+  
   const currentTimestamp = useMemo(() => {
     const ts = timestamps[currentMoveIndex];
     if (ts == null) return "";
-    // Format seconds to HH:MM:SS.d
     const sec = Math.floor(ts % 60);
     const min = Math.floor((ts / 60) % 60);
     const hr = Math.floor(ts / 3600);
-    const decimal = Math.floor((ts - Math.floor(ts)) * 10); // tenths
+    const decimal = Math.floor((ts - Math.floor(ts)) * 10);
     return [
       hr.toString().padStart(2, "0"),
       min.toString().padStart(2, "0"),
@@ -286,19 +283,49 @@ const History: React.FC = () => {
     return moveElements;
   };
 
+  const handleMoveTimestamp = (amount: number) => {
+    if(timestamps[currentMoveIndex] === null) return;
+    setTimestamps((prevTimestamps) => {
+      const newTimestamps = [...prevTimestamps];
+      if(newTimestamps[currentMoveIndex] != null) {
+        newTimestamps[currentMoveIndex] += amount;
+      }
+      return newTimestamps
+    })
+    moveOverlay(timestamps[currentMoveIndex], amount)
+  }
+
   return (
     <Card className="flex flex-col h-full border-0 rounded-none p-0">
       <CardContent className="p-0 flex flex-col h-full">
         {/* Top controls - Timestamp and Import PGN */}
         <div className="flex items-center justify-between bg-slate-100 py-2 px-2 border-b">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center">
+            <Button 
+              size="icon" 
+              className="h-8 w-5 rounded-none"
+              onClick={() => {
+                handleMoveTimestamp(-0.1);
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
             <Input 
               type="text" 
               value={currentTimestamp}
-              className="h-8 w-24 text-xs bg-white"
+              className="h-8 w-24 text-xs bg-white rounded-none"
               placeholder="00:00:00"
               readOnly
             />
+            <Button 
+              size="icon" 
+              className="h-8 w-5 rounded-none"
+              onClick={() => {
+                handleMoveTimestamp(0.1);
+              }}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
