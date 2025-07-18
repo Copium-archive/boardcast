@@ -285,12 +285,12 @@ const History: React.FC = () => {
 
   const handleMoveTimestamp = (amount: number) => {
     if(timestamps[currentMoveIndex] === null) return;
+    const shiftedTime = timestamps[currentMoveIndex] + amount;
+    const newTimestamp = Math.round(shiftedTime * 10) / 10;
     setTimestamps((prevTimestamps) => {
       const newTimestamps = [...prevTimestamps];
-      if(newTimestamps[currentMoveIndex] != null) {
-        newTimestamps[currentMoveIndex] += amount;
-      }
-      return newTimestamps
+      newTimestamps[currentMoveIndex] = newTimestamp;
+      return newTimestamps;
     })
     moveOverlay(timestamps[currentMoveIndex], amount)
   }

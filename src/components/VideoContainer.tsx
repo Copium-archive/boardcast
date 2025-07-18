@@ -100,6 +100,13 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   const [coord, setCoord] = useState<{x_max: number, y_max:number}>({x_max : 0, y_max : 0});
   const isEnabled = (isVideoLoaded && !!videoPath); 
 
+  // useEffect(() => {
+  //   console.log(">> timestamps", timestamps);
+  //   console.log(">> current overlay", overlays[currentOverlayId].timestamp);
+  //   console.log(">> checkpoints", checkpoints);
+  //   console.log(">> currentTime", currentTime)
+  // }, [timestamps, overlays, currentOverlayId, currentTime, checkpoints]);
+
   const calculateBoardSize = () => {
     if(!videoRef.current) return;
     const width = videoRef.current.videoWidth;
@@ -126,7 +133,9 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     if (!videoRef.current || !isEnabled) return;
     if(timestamp === null) return;
     
-    const newTimestamp = timestamp + amount;
+    const shiftedTime = timestamp + amount;
+    const newTimestamp = Math.round(shiftedTime * 10) / 10;
+    // roundedTime = Math.round(video.currentTime * 10) / 10
     if(newTimestamp < 0 || newTimestamp > duration) return;
 
     setOverlays((prevOverlays) => {
@@ -154,6 +163,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     })
     videoRef.current.currentTime = newTimestamp;
   }
+
 
   const createCheckpoint = (timestamp: number) => {
     if (!isVideoLoaded && !!videoPath) return;
