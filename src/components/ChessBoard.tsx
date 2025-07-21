@@ -326,7 +326,7 @@ export default function ChessBoard() {
           row.map((color, colIndex) => {
             const squareIndex = rowIndex * 8 + colIndex;
             const isHighlighted = highlight[rowIndex][colIndex] === 1;
-            const borderColor = isHighlighted ? darkenColor(color, 0.2) : color;
+            const borderColor = isHighlighted ? darkenColor(color, 0.3) : color;
             
             return (
               <div

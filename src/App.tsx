@@ -29,6 +29,8 @@ interface AppContextType {
   boardOrientation: number;
   setBoardOrientation: React.Dispatch<React.SetStateAction<number>>;
   moveOverlay: (timestamp: number | null, amount: number) => void;
+  hoveredSquare: {row: number, col: number} | null;
+  setHoveredSquare: React.Dispatch<React.SetStateAction<{row: number, col: number} | null>>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -47,7 +49,9 @@ export const AppContext = React.createContext<AppContextType>({
   setExecutingSegmentation: () => {},
   boardOrientation: 0,
   setBoardOrientation: () => {},
-  moveOverlay: () => {}
+  moveOverlay: () => {},
+  hoveredSquare: null,
+  setHoveredSquare: () => {}
 });
 
 function App() {
@@ -80,6 +84,7 @@ function App() {
   const [isEditingContour, setIsEditingContour] = useState(true);
   const [executingSegmentation, setExecutingSegmentation] = useState(false);
   
+  const [hoveredSquare, setHoveredSquare] = useState<{row: number, col: number} | null>(null);
   const [boardOrientation, setBoardOrientation] = useState<number>(0);
 
 
@@ -264,7 +269,8 @@ function App() {
           isEditingContour, setIsEditingContour,
           executingSegmentation, setExecutingSegmentation,
           boardOrientation, setBoardOrientation,
-          moveOverlay: (timestamp, amount) => { videoContainerRef.current?.moveOverlay(timestamp, amount) }
+          moveOverlay: (timestamp, amount) => { videoContainerRef.current?.moveOverlay(timestamp, amount) },
+          hoveredSquare, setHoveredSquare
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">

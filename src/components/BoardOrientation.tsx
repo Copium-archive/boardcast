@@ -4,6 +4,15 @@ import { RotateCw, Check } from 'lucide-react';
 import EvalBar from './EvalBar';
 import { Chess, Square } from 'chess.js';
 
+const darkenColor = (color: string, amount: number) => {
+  const hex = color.replace('#', '');
+  const rgb = parseInt(hex, 16);
+  const r = Math.max(0, Math.floor((rgb >> 16) * (1 - amount)));
+  const g = Math.max(0, Math.floor(((rgb >> 8) & 0xff) * (1 - amount)));
+  const b = Math.max(0, Math.floor((rgb & 0xff) * (1 - amount)));
+  return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+};
+
 const createChessboardColors = () => {
   const lightSquare = "#f0d9b5";
   const darkSquare = "#b58863";
@@ -89,8 +98,8 @@ function BoardOrientation() {
     const boardColors = createChessboardColors();
     const chess = new Chess();
     const boardData = inferFen(chess.fen());
-    const [hovered, setHovered] = useState<string | null>(null);
-    const {boardOrientation, setBoardOrientation, setExecutingSegmentation} = useContext(AppContext);
+    const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+    const {boardOrientation, setBoardOrientation, setExecutingSegmentation, hoveredSquare, setHoveredSquare} = useContext(AppContext);
 
     const handleRotate = () => {
         setBoardOrientation((prev: number) => (prev + 1) % 4);
@@ -107,7 +116,11 @@ function BoardOrientation() {
                     {boardColors.map((row, rowIndex) => (
                     row.map((color, colIndex) => {
                         const squareIndex = rowIndex * 8 + colIndex;
-                        
+                        const squareKey = `${rowIndex}-${colIndex}`;
+                        const hoveredSquareKey = `${hoveredSquare?.row}-${hoveredSquare?.col}`
+                        const isHighlighted = hoveredSquareKey === squareKey;
+                        const borderColor = isHighlighted ? darkenColor(color, 0.3) : color;
+
                         // Apply rotation to square position
                         const rotatedSquarePos = rotatePosition(rowIndex, colIndex, boardOrientation);
                         
@@ -115,13 +128,16 @@ function BoardOrientation() {
                         <div
                             key={squareIndex}
                             className="w-1/8 h-1/8 absolute"
-                            style={{ 
-                            backgroundColor: color, 
-                            boxSizing: 'border-box',
-                            boxShadow: `0px 0px 0px 5px ${color} inset`,
-                            left: `${rotatedSquarePos.col * 12.5}%`,
-                            top: `${rotatedSquarePos.row * 12.5}%`,
+                            style={{
+                              transition: 'left 0.2s ease-in-out, top 0.2s ease-in-out',
+                              backgroundColor: color,
+                              boxSizing: 'border-box',
+                              boxShadow: `0px 0px 0px 5px ${borderColor} inset`,
+                              left: `${rotatedSquarePos.col * 12.5}%`,
+                              top: `${rotatedSquarePos.row * 12.5}%`,
                             }}
+                            onMouseEnter={() => setHoveredSquare({row: rowIndex, col: colIndex})}
+                            onMouseLeave={() => setHoveredSquare(null)}
                         ></div>
                         );
                     })
@@ -139,10 +155,10 @@ function BoardOrientation() {
                             <img
                                 key={`${piece.position.square}`}
                                 src={`/chess/${label}.svg`}
-                                className="absolute w-[12.5%] h-[12.5%]"
+                                className="absolute w-[12.5%] h-[12.5%] pointer-events-none"
                                 style={{
                                     left: `${rotatedPos.col * 12.5}%`,
-                                    top: `${rotatedPos.row * 12.5}%`,
+                                    top: `${rotatedPos.row * 12.5}%`
                                 }}
                                 alt={label}
                             />
@@ -154,14 +170,14 @@ function BoardOrientation() {
             <div className='w-full h-full flex flex-col'>
                 <button
                     onClick={handleRotate}
-                    onMouseEnter={() => setHovered("rotate")}
-                    onMouseLeave={() => setHovered(null)}
+                    onMouseEnter={() => setHoveredButton("rotate")}
+                    onMouseLeave={() => setHoveredButton(null)}
                     className={`flex-1 p-6 transition-all duration-300 flex flex-col items-center justify-center ${
-                        hovered === "rotate" 
+                        hoveredButton === "rotate" 
                             ? 'text-white shadow-lg' 
                             : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
                     }`}
-                    style={hovered === "rotate" ? { backgroundColor: '#60a5fa', borderColor: '#60a5fa' } : {}}
+                    style={hoveredButton === "rotate" ? { backgroundColor: '#60a5fa', borderColor: '#60a5fa' } : {}}
                 >
                     <RotateCw size={56} className="mb-3" />
                     <span className={`text-5xl font-semibold`}>
@@ -171,10 +187,10 @@ function BoardOrientation() {
                 <div className="w-full h-px bg-gray-200" />
                 <button
                     onClick={handleOk}
-                    onMouseEnter={() => setHovered("ok")}
-                    onMouseLeave={() => setHovered(null)}
+                    onMouseEnter={() => setHoveredButton("ok")}
+                    onMouseLeave={() => setHoveredButton(null)}
                     className={`flex-1 p-6 transition-all duration-300 flex flex-col items-center justify-center ${
-                        hovered === "ok" 
+                        hoveredButton === "ok" 
                             ? 'bg-green-500 border-green-600 text-white shadow-lg' 
                             : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
                     }`}

@@ -58,7 +58,6 @@ function rotatePosition(row: number, col: number, orientation: number) {
     return { row: newRow, col: newCol };
 }
 
-
 function orderCorners(corners: Point[]): Point[] {
     if (corners.length !== 4) {
         throw new Error('Exactly 4 corners are required');
@@ -88,10 +87,10 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         setCurrentMoveIndex,
         positions, setPositions, 
         moves, setMoves, setTimestamps,
+        hoveredSquare, setHoveredSquare,
     } = useContext(AppContext);
     const { videoRef, setROI, currentTime, setOverlays, createCheckpoint } = useContext(VideoContext);
     
-    const [hoveredSquareId, setHoveredSquareId] = useState<number | null>(null);
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
     
     const [editingPoints, setEditingPoints] = useState<Point[]>([]);
@@ -378,9 +377,15 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
 
                 {/* Chess squares */}
                 <g>
-                    {!isEditingContour && !executingSegmentation && squares.map((square) => {
+                    {!isEditingContour && squares.map((square) => {
                         const isSelected = selectedSquare?.id === square.id;
-                        const isHovered = hoveredSquareId === square.id;
+                        // const hoveredSquareId = (hoveredSquare) ? (hoveredSquare.row * 8) + hoveredSquare.col : null;
+                        const rotatedSquarePos = rotatePosition(square.square.row, square.square.col, boardOrientation);
+                        const isHovered =
+                            hoveredSquare &&
+                            rotatedSquarePos.row === hoveredSquare.row &&
+                            rotatedSquarePos.col === hoveredSquare.col;
+
                         return (
                             <polygon
                                 key={square.id}
@@ -393,8 +398,8 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                                     e.stopPropagation();
                                     handleSquareClick(square);
                                 }}
-                                onMouseEnter={() => setHoveredSquareId(square.id)}
-                                onMouseLeave={() => setHoveredSquareId(null)}
+                                onMouseEnter={() => setHoveredSquare({row: rotatedSquarePos.row, col: rotatedSquarePos.col})}
+                                onMouseLeave={() => setHoveredSquare(null)}
                                 className="cursor-pointer"
                                 style={{
                                     pointerEvents: isEditingContour ? 'none' : 'auto',
