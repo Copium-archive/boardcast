@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import Timeline from "./TimeLine";
 import { AppContext } from "@/App";
@@ -77,7 +78,7 @@ export const VideoContext = React.createContext<VideoContextType>({
 });
 
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
-  const { positions, currentMoveIndex, setTimestamps} = React.useContext(AppContext);
+  const { positions, currentMoveIndex, setTimestamps, isEditingContour, interactiveChessboardRef} = React.useContext(AppContext);
   const [corner, setCorner] = useState<Offset>({ x_offsetRatio: 0, y_offsetRatio: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
@@ -106,6 +107,14 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   //   console.log(">> checkpoints", checkpoints);
   //   console.log(">> currentTime", currentTime)
   // }, [timestamps, overlays, currentOverlayId, currentTime, checkpoints]);
+
+  // Pause video when entering edit mode
+  useEffect(() => {
+    if (isEditingContour && videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [isEditingContour]);
 
   const calculateBoardSize = () => {
     if(!videoRef.current) return;
@@ -315,6 +324,9 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   };
 
   const handleOverlaying = () => {
+    // Disable overlay creation when editing contour
+    if (isEditingContour) return;
+    
     if(videoRef.current) {
       if(isPlaying === true) {
         return ;
@@ -386,6 +398,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
                   coord={coord}
                   boundingBox={videoBoundingBox}
                   getPreviousFen={getPreviousFen}
+                  ref={interactiveChessboardRef}
               />
             ) : null}
             

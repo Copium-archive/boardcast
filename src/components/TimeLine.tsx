@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Card, CardContent } from "@/components/ui/card";
 import { useContext } from "react";
 import { VideoContext } from "./VideoContainer";
+import { AppContext } from "@/App";
 import SettingsDialog from "./SettingsDialog";
 import CheckpointCarousel from "./CheckpointCarousel";
 import VideoSlider from "./VideoSlider";
@@ -27,6 +28,9 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
     createCheckpoint,
     ROI
   } = useContext(VideoContext);
+  const {
+    isEditingContour
+  } = useContext(AppContext);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
@@ -36,6 +40,14 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
   
   const [isAutoSkipEnabled, setIsAutoSkipEnabled] = useState(false);
   const [autoSkipSegments, setAutoSkipSegments] = useState<{ start: number; end: number }[]>([{ start: -1, end: -1 }]);
+
+  // Pause video when entering edit mode
+  useEffect(() => {
+    if (isEditingContour && videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [isEditingContour, videoRef]);
 
   useEffect(() => {
     const runScript = async () => {
@@ -324,7 +336,10 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
         case ' ':  // Space bar
           {
             e.preventDefault();
-            togglePlayPause();
+            // Prevent play/pause when in edit mode
+            if (!isEditingContour) {
+              togglePlayPause();
+            }
             // Create checkpoint when pausing (not when playing)
           }
           break;
@@ -372,11 +387,11 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [videoRef, isEnabled, checkpoints, checkpointIndex, skipTime]);
+  }, [videoRef, isEnabled, checkpoints, checkpointIndex, skipTime, isEditingContour]);
 
   // Toggle play/pause
   const togglePlayPause = () => {
-    if (!videoRef.current || !isEnabled) return;
+    if (!videoRef.current || !isEnabled || isEditingContour) return;
     
     if (videoRef.current.paused) {
       videoRef.current.play()
@@ -527,13 +542,13 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
                     size="icon" 
                     onClick={togglePlayPause}
                     aria-label={isPlaying ? "Pause" : "Play"}
-                    disabled={!isEnabled}
+                    disabled={!isEnabled || isEditingContour}
                   >
                     {isPlaying ? <Pause size={16} /> : <Play size={16} />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{isPlaying ? "Pause (Space)" : "Play (Space)"}</p>
+                  <p>{isEditingContour ? "Play disabled in edit mode" : (isPlaying ? "Pause (Space)" : "Play (Space)")}</p>
                 </TooltipContent>
               </Tooltip>
               

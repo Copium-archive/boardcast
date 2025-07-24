@@ -1,6 +1,6 @@
 import { AppContext } from '@/App';
 import { useState, useContext} from 'react';
-import { RotateCw, Check } from 'lucide-react';
+import { RotateCw, Check, X } from 'lucide-react';
 import EvalBar from './EvalBar';
 import { Chess, Square } from 'chess.js';
 
@@ -99,14 +99,46 @@ function BoardOrientation() {
     const chess = new Chess();
     const boardData = inferFen(chess.fen());
     const [hoveredButton, setHoveredButton] = useState<string | null>(null);
-    const {boardOrientation, setBoardOrientation, setExecutingSegmentation, hoveredSquare, setHoveredSquare} = useContext(AppContext);
+    const {boardOrientation, setBoardOrientation, setExecutingSegmentation, hoveredSquare, setHoveredSquare, setEnableDiscard, interactiveChessboardRef, setIsEditingContour} = useContext(AppContext);
+    const previewBoardOrientation = (boardOrientation.current + boardOrientation.shifted) % 4;
 
     const handleRotate = () => {
-        setBoardOrientation((prev: number) => (prev + 1) % 4);
+      setBoardOrientation(
+        (prev) => {
+          return { 
+            ...prev,
+            shifted: (prev.shifted + 1) % 4
+          };
+        }
+      );
     };
 
     const handleOk = () => {
-        setExecutingSegmentation(false)
+      interactiveChessboardRef.current?.finalize();
+      setEnableDiscard(false);
+      setExecutingSegmentation(false);
+      setBoardOrientation(
+        (prev) => {
+          return { 
+            current: (prev.current + prev.shifted) % 4,
+            shifted: 0
+          };
+        }
+      );
+    };
+
+    const handleCancel = () => {
+      setExecutingSegmentation(false);
+      setIsEditingContour(true);
+      setEnableDiscard(false);
+      setBoardOrientation(
+        (prev) => {
+          return { 
+            ...prev,
+            shifted: 0
+          };
+        }
+      );
     };
 
     return (
@@ -122,7 +154,7 @@ function BoardOrientation() {
                         const borderColor = isHighlighted ? darkenColor(color, 0.3) : color;
 
                         // Apply rotation to square position
-                        const rotatedSquarePos = rotatePosition(rowIndex, colIndex, boardOrientation);
+                        const rotatedSquarePos = rotatePosition(rowIndex, colIndex, previewBoardOrientation);
                         
                         return (
                         <div
@@ -149,7 +181,7 @@ function BoardOrientation() {
                         const { row, col } = piece.position;
                         
                         // Apply rotation to piece position
-                        const rotatedPos = rotatePosition(row, col, boardOrientation);
+                        const rotatedPos = rotatePosition(row, col, previewBoardOrientation);
 
                         return (
                             <img
@@ -198,6 +230,22 @@ function BoardOrientation() {
                     <Check size={56} className="mb-3" />
                     <span className={`text-5xl font-semibold`}>
                         OK
+                    </span>
+                </button>
+                <div className="w-full h-px bg-gray-200" />
+                <button
+                    onClick={handleCancel}
+                    onMouseEnter={() => setHoveredButton("cancel")}
+                    onMouseLeave={() => setHoveredButton(null)}
+                    className={`flex-1 p-6 transition-all duration-300 flex flex-col items-center justify-center ${
+                        hoveredButton === "cancel" 
+                            ? 'bg-red-500 border-red-600 text-white shadow-lg' 
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                >
+                    <X size={56} className="mb-3" />
+                    <span className={`text-5xl font-semibold`}>
+                        Cancel
                     </span>
                 </button>
             </div>

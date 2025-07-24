@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useContext} from 'react';
+import React, { useState, useMemo, useEffect, useContext, forwardRef, useImperativeHandle } from 'react';
 import { AppContext } from '@/App';
 import { VideoContext } from './VideoContainer';
 import { segmentChessboard, validateChessboardCorners } from '../lib/chessboard-segmentation';
@@ -39,6 +39,12 @@ interface InteractiveChessboardProps {
   getPreviousFen: () => string | undefined;
 }
 
+// NEW: Define the type for the exposed imperative handles.
+// This allows parent components to call methods on this component via a ref.
+export interface InteractiveChessboardRef {
+    finalize: () => void | undefined;
+}
+
 function algebraicNotation(row: number, col: number): Square {
   const file = String.fromCharCode('a'.charCodeAt(0) + col);
   const rank = 8 - row;
@@ -76,11 +82,12 @@ function orderCorners(corners: Point[]): Point[] {
     ];
 }
 
-const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
+// MODIFIED: Wrapped the component in forwardRef to accept a ref.
+const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveChessboardProps>(({
     coord,
     boundingBox,
     getPreviousFen,
-}) => {
+}, ref) => {
     const { isEditingContour, setIsEditingContour, 
         executingSegmentation, setExecutingSegmentation, 
         boardOrientation,
@@ -88,19 +95,85 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         positions, setPositions, 
         moves, setMoves, setTimestamps,
         hoveredSquare, setHoveredSquare,
+        enableDiscard,
+        setEnableDiscard
     } = useContext(AppContext);
+    const previewBoardOrientation = (boardOrientation.current + boardOrientation.shifted) % 4;
     const { videoRef, setROI, currentTime, setOverlays, createCheckpoint } = useContext(VideoContext);
     
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
     
     const [editingPoints, setEditingPoints] = useState<Point[]>([]);
-    const [squares, setSquares] = useState<ProcessedSquare[]>([]);
-    const [finalBoardCorners, setFinalBoardCorners] = useState<Point[]>([]);
+    const sortedEditingPoints = (editingPoints.length === 4) ? orderCorners(editingPoints): editingPoints;
+    const previewSquares = useMemo<ProcessedSquare[]>(() => {
+        if (sortedEditingPoints.length !== 4) {
+            return [];
+        }
 
+        try {
+            const corners = sortedEditingPoints.map(([x, y]) => ({ x, y }));
+            
+            if (!validateChessboardCorners(corners)) {
+                console.warn('Invalid chessboard corners for segmentation');
+                return [];
+            }
+
+            const result = segmentChessboard(corners);
+            
+            const processedSquares: ProcessedSquare[] = result.squares.map(square => ({
+                id: square.id,
+                square: square.square,
+                corners: {
+                    topLeft: [square.corners.topLeft.x, square.corners.topLeft.y],
+                    topRight: [square.corners.topRight.x, square.corners.topRight.y],
+                    bottomRight: [square.corners.bottomRight.x, square.corners.bottomRight.y],
+                    bottomLeft: [square.corners.bottomLeft.x, square.corners.bottomLeft.y]
+                },
+                pointsString: [
+                    square.corners.topLeft,
+                    square.corners.topRight,
+                    square.corners.bottomRight,
+                    square.corners.bottomLeft
+                ].map(p => `${p.x},${p.y}`).join(' ')
+            }));
+            
+            return processedSquares;
+        } catch (error) {
+            console.error('Error in chessboard segmentation:', error);
+            return [];
+        }
+    }, [sortedEditingPoints]);
+    const previewBoardOutline = useMemo(() => {
+        if (sortedEditingPoints.length !== 4) return '';
+        return sortedEditingPoints.map(p => `${p[0]},${p[1]}`).join(' ');
+    }, [sortedEditingPoints]);
+    
+    const [squares, setSquares] = useState<ProcessedSquare[]>([]);
+    const [boardCorners, setBoardCorners] = useState<Point[]>([]);
     const boardOutline = useMemo(() => {
-        if (finalBoardCorners.length !== 4) return '';
-        return finalBoardCorners.map(p => `${p[0]},${p[1]}`).join(' ');
-    }, [finalBoardCorners]);
+        if (boardCorners.length !== 4) return '';
+        return boardCorners.map(p => `${p[0]},${p[1]}`).join(' ');
+    }, [boardCorners]);
+    
+    const finalize = () => {
+        try {
+            if (!validateChessboardCorners(editingPoints.slice(0, 4).map(([x, y]) => ({ x, y })))) {
+                console.warn('Invalid chessboard corners selected');
+                return;
+            }
+
+            const cornersString = sortedEditingPoints.map(([x, y]) => `${Math.round(x)},${Math.round(y)}`);
+            setROI(cornersString);
+            setBoardCorners(sortedEditingPoints);
+            setSquares(previewSquares);
+        } catch (error) {
+            console.error('Error processing chessboard corners:', error);
+        }
+    }
+
+    useImperativeHandle(ref, () => ({
+        finalize
+    }));
 
     const appendMove = (newPosition: Chess, prefixLength?: number) => {
         if(!videoRef.current) {
@@ -140,74 +213,21 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     }
 
     // Process chessboard segmentation when we have 4 points
-    useEffect(() => {
+    useEffect(() => { 
+        if(editingPoints.length > 0) {
+            setEnableDiscard(true);
+        }
         if (editingPoints.length >= 4) {
-            setIsEditingContour(false);
             setExecutingSegmentation(true);
+            setIsEditingContour(false);
         }
     }, [editingPoints]);
 
-    // Run segmentation when editing is complete
     useEffect(() => {
-        const processChessboard = () => {
-            if (editingPoints.length < 4) {
-                setEditingPoints([]);
-                return;
-            }
-
-            try {
-                // Convert points to the format expected by the segmentation function
-                const corners = editingPoints.slice(0, 4).map(([x, y]) => ({ x, y }));
-                
-                // Validate corners
-                if (!validateChessboardCorners(corners)) {
-                    console.warn('Invalid chessboard corners selected');
-                    setEditingPoints([]);
-                    return;
-                }
-
-                // Set ROI for video context
-                const cornersString = corners.map(({ x, y }) => `${Math.round(x)},${Math.round(y)}`);
-                console.log("ROI corners:", cornersString);
-                setROI(cornersString);
-
-                // Order and store the final corners for the visual effect
-                const orderedCorners = orderCorners(editingPoints.slice(0, 4));
-                
-                // Perform segmentation
-                const result = segmentChessboard(corners);
-                
-                // Convert to the format expected by the component
-                const processedSquares: ProcessedSquare[] = result.squares.map(square => ({
-                    id: square.id,
-                    square: square.square,
-                    corners: {
-                        topLeft: [square.corners.topLeft.x, square.corners.topLeft.y],
-                        topRight: [square.corners.topRight.x, square.corners.topRight.y],
-                        bottomRight: [square.corners.bottomRight.x, square.corners.bottomRight.y],
-                        bottomLeft: [square.corners.bottomLeft.x, square.corners.bottomLeft.y]
-                    },
-                    pointsString: [
-                        square.corners.topLeft,
-                        square.corners.topRight,
-                        square.corners.bottomRight,
-                        square.corners.bottomLeft
-                    ].map(p => `${p.x},${p.y}`).join(' ')
-                }));
-                
-                setFinalBoardCorners(orderedCorners);
-                setSquares(processedSquares);
-                setEditingPoints([]);
-            } catch (error) {
-                console.error('Error in chessboard segmentation:', error);
-            }
-        };
-
-        if (isEditingContour === false) {
-            processChessboard();
+        if(enableDiscard === false) {
+            setEditingPoints([]);
         }
-    }, [isEditingContour]);
-
+    }, [enableDiscard]);
     
     const viewBox = useMemo(() => {
         const { x_max, y_max } = coord;
@@ -236,8 +256,8 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                 if (!previousFen) {
                     return;
                 }
-                const to_square = rotatePosition(selectedSquare.square.row, selectedSquare.square.col, boardOrientation);
-                const from_square = rotatePosition(square.square.row, square.square.col, boardOrientation);
+                const to_square = rotatePosition(selectedSquare.square.row, selectedSquare.square.col, previewBoardOrientation);
+                const from_square = rotatePosition(square.square.row, square.square.col, previewBoardOrientation);
                 const newPosition = new Chess(previousFen);
                 const from = algebraicNotation(from_square.row, from_square.col);
                 const to = algebraicNotation(to_square.row, to_square.col);
@@ -266,6 +286,15 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
         const newPoint: Point = [x, y];
         setEditingPoints(prev => [...prev, newPoint]);
     };
+
+    const handlePointClick = (event: React.MouseEvent, indexToRemove: number) => {
+        // Prevent the main SVG click handler from firing and adding a new point.
+        event.stopPropagation();
+    
+        if (isEditingContour) {
+            setEditingPoints(prevPoints => prevPoints.filter((_, i) => i !== indexToRemove));
+        }
+    };
     
     useEffect(() => {
         if (!videoRef.current?.paused) {
@@ -287,16 +316,16 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
     
     // Memoize points for the segmentation effect
     const segmentationEffectPoints = useMemo(() => {
-        if (!executingSegmentation || finalBoardCorners.length !== 4 || !coord) return null;
+        if (!executingSegmentation || sortedEditingPoints.length !== 4 || !coord) return null;
 
-        const boardTopRight = finalBoardCorners[1]; // Get top-right from ordered corners
+        const boardTopRight = sortedEditingPoints[1]; // Get top-right from ordered corners
         const viewboxTopRight: Point = [coord.x_max+2, (coord.x_max / 10)];
 
         return {
             arrowStart: viewboxTopRight,
             arrowEnd: boardTopRight,
         };
-    }, [executingSegmentation, finalBoardCorners, coord]);
+    }, [executingSegmentation, sortedEditingPoints, coord]);
 
     return (
         <>
@@ -331,7 +360,7 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                             */}
                             <mask id="segmentation-mask">
                                 <rect x="0" y="0" width="100%" height="100%" fill="white" />
-                                <polygon points={boardOutline} fill="black" />
+                                <polygon points={previewBoardOutline} fill="black" />
                             </mask>
                         </defs>
                         
@@ -375,12 +404,11 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                     />
                 )}
 
-                {/* Chess squares */}
+                {/* Chess squares preview */}
                 <g>
-                    {!isEditingContour && squares.map((square) => {
+                    {executingSegmentation && previewSquares.map((square) => {
                         const isSelected = selectedSquare?.id === square.id;
-                        // const hoveredSquareId = (hoveredSquare) ? (hoveredSquare.row * 8) + hoveredSquare.col : null;
-                        const rotatedSquarePos = rotatePosition(square.square.row, square.square.col, boardOrientation);
+                        const rotatedSquarePos = rotatePosition(square.square.row, square.square.col, previewBoardOrientation);
                         const isHovered =
                             hoveredSquare &&
                             rotatedSquarePos.row === hoveredSquare.row &&
@@ -411,72 +439,112 @@ const InteractiveChessboard: React.FC<InteractiveChessboardProps> = ({
                         );
                     })}
                 </g>
-                
-                {/* Corner points being edited */}
-                {editingPoints.map((point, index) => (
-                    <g key={index}>
-                        <circle
-                            cx={point[0]}
-                            cy={point[1]}
-                            r={5}
-                            fill="#3b82f6"
-                            stroke="white"
-                            strokeWidth={2}
-                            vectorEffect="non-scaling-stroke"
-                            style={{ pointerEvents: 'none' }}
-                        />
-                        <text
-                            x={point[0]}
-                            y={point[1] - 10}
-                            fill="white"
-                            fontSize="12"
-                            textAnchor="middle"
-                            style={{ pointerEvents: 'none' }}
-                        >
-                            {index + 1}
-                        </text>
-                    </g>
-                ))}
-                
-                {/* Connect the corner points with lines */}
-                {editingPoints.length > 1 && (
-                    <g>
-                    {editingPoints.map((point, index) => {
-                        if (index === 0) return null;
-                        const prevPoint = editingPoints[index - 1];
+
+                {/* Chess squares*/}
+                <g>
+                    {!isEditingContour && !executingSegmentation && squares.map((square) => {
+                        const isSelected = selectedSquare?.id === square.id;
+                        const rotatedSquarePos = rotatePosition(square.square.row, square.square.col, previewBoardOrientation);
+                        const isHovered =
+                            hoveredSquare &&
+                            rotatedSquarePos.row === hoveredSquare.row &&
+                            rotatedSquarePos.col === hoveredSquare.col;
+
                         return (
-                        <line
-                            key={`line-${index}`}
-                            x1={prevPoint[0]}
-                            y1={prevPoint[1]}
-                            x2={point[0]}
-                            y2={point[1]}
-                            stroke="#3b82f6"
-                            strokeWidth={4}
-                            strokeDasharray="8,4"
-                            vectorEffect="non-scaling-stroke"
-                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 1px #fff)' }}
-                        />
+                            <polygon
+                                key={square.id}
+                                points={square.pointsString}
+                                fill="transparent"
+                                stroke={isSelected ? '#3b82f6' : '#60a5fa'}
+                                strokeWidth={(isSelected || isHovered) ? 4 : 0}
+                                strokeDasharray={(isHovered && !isSelected) ? '8,4' : '0'}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSquareClick(square);
+                                }}
+                                onMouseEnter={() => setHoveredSquare({row: rotatedSquarePos.row, col: rotatedSquarePos.col})}
+                                onMouseLeave={() => setHoveredSquare(null)}
+                                className="cursor-pointer"
+                                style={{
+                                    pointerEvents: isEditingContour ? 'none' : 'auto',
+                                    cursor: isEditingContour ? 'crosshair' : 'pointer',
+                                    vectorEffect: "non-scaling-stroke",
+                                    filter: isHovered ? 'drop-shadow(0 0 1px #fff)' : 'none',
+                                }}
+                            />
                         );
                     })}
-                    {editingPoints.length === 4 && (
-                        <line
-                        x1={editingPoints[3][0]}
-                        y1={editingPoints[3][1]}
-                        x2={editingPoints[0][0]}
-                        y2={editingPoints[0][1]}
-                        stroke="#f59e42"
-                        strokeWidth={4}
-                        strokeDasharray="8,4"
-                        vectorEffect="non-scaling-stroke"
-                        style={{ pointerEvents: 'none', filter: 'drop-shadow(0 0 1px #fff)' }}
-                        />
-                    )}
-                    </g>
+                </g>                
+
+                {!executingSegmentation && (
+                    <>
+                        {/* Corner points being edited */}
+                        {editingPoints.map((point, index) => (
+                            <g key={index}>
+                                <circle
+                                    cx={point[0]}
+                                    cy={point[1]}
+                                    r={5}
+                                    fill="#3b82f6"
+                                    stroke="white"
+                                    strokeWidth={2}
+                                    vectorEffect="non-scaling-stroke"
+                                    onClick={(e) => handlePointClick(e, index)}
+                                    style={{ 
+                                        pointerEvents: 'auto',
+                                        cursor: 'pointer'
+                                    }}
+                                />
+                                <text
+                                    x={point[0]}
+                                    y={point[1] - 10}
+                                    fill="white"
+                                    fontSize="12"
+                                    textAnchor="middle"
+                                    style={{ pointerEvents: 'none' }}
+                                >
+                                    {index + 1}
+                                </text>
+                            </g>
+                        ))}
+
+                        {/* Connect the corner points with lines */}
+                        <g>
+                            {sortedEditingPoints.map((point, index) => {
+                                const nextIndex = (index + 1) % sortedEditingPoints.length;
+
+                                if (index === sortedEditingPoints.length - 1 && sortedEditingPoints.length < 3) {
+                                    return null; // Skip wrapping line unless there are 4 points
+                                }
+
+                                const nextPoint = sortedEditingPoints[nextIndex];
+
+                                return (
+                                    <line
+                                        key={`line-${index}`}
+                                        x1={point[0]}
+                                        y1={point[1]}
+                                        x2={nextPoint[0]}
+                                        y2={nextPoint[1]}
+                                        stroke="#3b82f6"
+                                        strokeWidth={4}
+                                        strokeDasharray="8,4"
+                                        vectorEffect="non-scaling-stroke"
+                                        style={{
+                                            pointerEvents: 'none',
+                                            filter: 'drop-shadow(0 0 1px #fff)',
+                                        }}
+                                    />
+                                );
+                            })}
+                        </g>
+                    </>
                 )}
             </svg>
         </>
     );
-};
+});
+
+InteractiveChessboard.displayName = 'InteractiveChessboard';
 
 export default InteractiveChessboard;

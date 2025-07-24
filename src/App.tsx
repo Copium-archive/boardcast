@@ -6,6 +6,7 @@ import { invoke, convertFileSrc} from '@tauri-apps/api/core';
 import { writeTextFile} from '@tauri-apps/plugin-fs';
 import AnalysisBoard from "./components/AnalysisBoard";
 import VideoContainer, { VideoContainerRef } from "./components/VideoContainer";
+import { InteractiveChessboardRef } from "./components/InteractiveChessboard";
 import ExportLoadingDialog from "./components/ExportLoadingDialog";
 import {useEffect, useRef, useState } from "react";
 import React from "react";
@@ -24,13 +25,16 @@ interface AppContextType {
   EvalCache: React.RefObject<{ [key: string]: { evaluation: number | string | null; bestMove: string | null } }>;
   isEditingContour: boolean;
   setIsEditingContour: React.Dispatch<React.SetStateAction<boolean>>;
+  enableDiscard: boolean,
+  setEnableDiscard:  React.Dispatch<React.SetStateAction<boolean>>;
   executingSegmentation: boolean;
   setExecutingSegmentation: React.Dispatch<React.SetStateAction<boolean>>;
-  boardOrientation: number;
-  setBoardOrientation: React.Dispatch<React.SetStateAction<number>>;
+  boardOrientation: {current: number, shifted: number};
+  setBoardOrientation: React.Dispatch<React.SetStateAction<{current: number, shifted: number}>>;
   moveOverlay: (timestamp: number | null, amount: number) => void;
   hoveredSquare: {row: number, col: number} | null;
   setHoveredSquare: React.Dispatch<React.SetStateAction<{row: number, col: number} | null>>;
+  interactiveChessboardRef: React.RefObject<InteractiveChessboardRef | null>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -45,13 +49,21 @@ export const AppContext = React.createContext<AppContextType>({
   EvalCache: { current: {} },
   isEditingContour: false,
   setIsEditingContour: () => {},
+  enableDiscard: false,
+  setEnableDiscard: () => {},
   executingSegmentation: false,
   setExecutingSegmentation: () => {},
-  boardOrientation: 0,
+  boardOrientation: {current: 1, shifted: 0},
   setBoardOrientation: () => {},
   moveOverlay: () => {},
   hoveredSquare: null,
-  setHoveredSquare: () => {}
+  setHoveredSquare: () => {},
+  
+  interactiveChessboardRef: {
+    current: {
+      finalize: () => {} 
+    }
+  }
 });
 
 function App() {
@@ -80,12 +92,16 @@ function App() {
   
   // Add ref for VideoContainer
   const videoContainerRef = useRef<VideoContainerRef>(null);
+  const interactiveChessboardRef = useRef<InteractiveChessboardRef>(null);
 
   const [isEditingContour, setIsEditingContour] = useState(true);
+  const [enableDiscard, setEnableDiscard] = useState(false);
   const [executingSegmentation, setExecutingSegmentation] = useState(false);
   
   const [hoveredSquare, setHoveredSquare] = useState<{row: number, col: number} | null>(null);
-  const [boardOrientation, setBoardOrientation] = useState<number>(0);
+  const [boardOrientation, setBoardOrientation] = useState<{current: number, shifted: number}>(
+    {current : 1, shifted : 0}
+  );
 
 
   // Monitor evaluation progress
@@ -257,6 +273,14 @@ function App() {
     }
   }
 
+  const handleEditButton = () => {
+    if(enableDiscard === true) {
+      setEnableDiscard(false);
+      return;
+    }
+    setIsEditingContour(!isEditingContour);
+  }
+
   return (
     <div className="w-full h-screen flex flex-col bg-muted p-2 gap-0">
       <div className="flex flex-1 gap-2">
@@ -267,10 +291,12 @@ function App() {
           positions, setPositions,
           EvalCache,
           isEditingContour, setIsEditingContour,
+          enableDiscard, setEnableDiscard,
           executingSegmentation, setExecutingSegmentation,
           boardOrientation, setBoardOrientation,
           moveOverlay: (timestamp, amount) => { videoContainerRef.current?.moveOverlay(timestamp, amount) },
-          hoveredSquare, setHoveredSquare
+          hoveredSquare, setHoveredSquare,
+          interactiveChessboardRef
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">
@@ -285,7 +311,7 @@ function App() {
                 {isExporting ? 'Exporting...' : 'Export'}
               </Button>
               <Button 
-                onClick={() => setIsEditingContour(!isEditingContour)} 
+                onClick={handleEditButton} 
                 variant="outline"
                 disabled={executingSegmentation}
                 >
@@ -296,7 +322,9 @@ function App() {
                   </>
                 ) : (
                   <>
-                    {isEditingContour ? <Trash2 className="h-4 w-4" /> : 'Edit'}
+                    {isEditingContour ? (
+                      enableDiscard ? <Trash2 className="h-4 w-4" /> : 'Stop editing'
+                    ) : 'Edit'}
                   </>
                 )}
               </Button>
