@@ -99,7 +99,12 @@ function BoardOrientation() {
     const chess = new Chess();
     const boardData = inferFen(chess.fen());
     const [hoveredButton, setHoveredButton] = useState<string | null>(null);
-    const {boardOrientation, setBoardOrientation, setExecutingSegmentation, hoveredSquare, setHoveredSquare, setEnableDiscard, interactiveChessboardRef, setIsEditingContour} = useContext(AppContext);
+    const {boardOrientation, setBoardOrientation, 
+          setSelectingOrientation, 
+          hoveredSquare, setHoveredSquare, 
+          setEnableDiscard, interactiveChessboardRef, 
+          setIsEditingContour,
+          skippedToOrientation} = useContext(AppContext);
     const previewBoardOrientation = (boardOrientation.current + boardOrientation.shifted) % 4;
 
     const handleRotate = () => {
@@ -116,7 +121,7 @@ function BoardOrientation() {
     const handleOk = () => {
       interactiveChessboardRef.current?.finalize();
       setEnableDiscard(false);
-      setExecutingSegmentation(false);
+      setSelectingOrientation(false);
       setBoardOrientation(
         (prev) => {
           return { 
@@ -125,11 +130,12 @@ function BoardOrientation() {
           };
         }
       );
+      skippedToOrientation.current = false;
     };
 
     const handleCancel = () => {
-      setExecutingSegmentation(false);
-      setIsEditingContour(true);
+      setSelectingOrientation(false);
+      setIsEditingContour(!skippedToOrientation.current);
       setEnableDiscard(false);
       setBoardOrientation(
         (prev) => {
@@ -139,6 +145,7 @@ function BoardOrientation() {
           };
         }
       );
+      skippedToOrientation.current = false;
     };
 
     return (

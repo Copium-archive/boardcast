@@ -27,10 +27,11 @@ interface AppContextType {
   setIsEditingContour: React.Dispatch<React.SetStateAction<boolean>>;
   enableDiscard: boolean,
   setEnableDiscard:  React.Dispatch<React.SetStateAction<boolean>>;
-  executingSegmentation: boolean;
-  setExecutingSegmentation: React.Dispatch<React.SetStateAction<boolean>>;
+  selectingOrientation: boolean;
+  setSelectingOrientation: React.Dispatch<React.SetStateAction<boolean>>;
   boardOrientation: {current: number, shifted: number};
   setBoardOrientation: React.Dispatch<React.SetStateAction<{current: number, shifted: number}>>;
+  skippedToOrientation: React.RefObject<boolean>;
   moveOverlay: (timestamp: number | null, amount: number) => void;
   hoveredSquare: {row: number, col: number} | null;
   setHoveredSquare: React.Dispatch<React.SetStateAction<{row: number, col: number} | null>>;
@@ -51,9 +52,10 @@ export const AppContext = React.createContext<AppContextType>({
   setIsEditingContour: () => {},
   enableDiscard: false,
   setEnableDiscard: () => {},
-  executingSegmentation: false,
-  setExecutingSegmentation: () => {},
+  selectingOrientation: false,
+  setSelectingOrientation: () => {},
   boardOrientation: {current: 1, shifted: 0},
+  skippedToOrientation: {current: false},
   setBoardOrientation: () => {},
   moveOverlay: () => {},
   hoveredSquare: null,
@@ -61,7 +63,8 @@ export const AppContext = React.createContext<AppContextType>({
   
   interactiveChessboardRef: {
     current: {
-      finalize: () => {} 
+      finalize: () => {},
+      skipToOrientation: () => {}
     }
   }
 });
@@ -96,7 +99,8 @@ function App() {
 
   const [isEditingContour, setIsEditingContour] = useState(true);
   const [enableDiscard, setEnableDiscard] = useState(false);
-  const [executingSegmentation, setExecutingSegmentation] = useState(false);
+  const [selectingOrientation, setSelectingOrientation] = useState(false);
+  const skippedToOrientation = useRef<boolean>(false);
   
   const [hoveredSquare, setHoveredSquare] = useState<{row: number, col: number} | null>(null);
   const [boardOrientation, setBoardOrientation] = useState<{current: number, shifted: number}>(
@@ -292,7 +296,8 @@ function App() {
           EvalCache,
           isEditingContour, setIsEditingContour,
           enableDiscard, setEnableDiscard,
-          executingSegmentation, setExecutingSegmentation,
+          selectingOrientation, setSelectingOrientation,
+          skippedToOrientation,
           boardOrientation, setBoardOrientation,
           moveOverlay: (timestamp, amount) => { videoContainerRef.current?.moveOverlay(timestamp, amount) },
           hoveredSquare, setHoveredSquare,
@@ -313,9 +318,9 @@ function App() {
               <Button 
                 onClick={handleEditButton} 
                 variant="outline"
-                disabled={executingSegmentation}
+                disabled={selectingOrientation}
                 >
-                {executingSegmentation ? (
+                {selectingOrientation ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Processing...

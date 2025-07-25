@@ -8,7 +8,6 @@ import BoardOrientation from './BoardOrientation';
 
 interface BoardContextType {
   currentFen: string;
-  // PgnOperation: React.RefObject<string|null>;
 }
 
 export const BoardContext = React.createContext<BoardContextType>({
@@ -16,13 +15,13 @@ export const BoardContext = React.createContext<BoardContextType>({
 });
 
 function AnalysisBoard() {
-  const {currentMoveIndex, positions, executingSegmentation} = useContext(AppContext);
+  const {currentMoveIndex, positions, selectingOrientation} = useContext(AppContext);
   const currentFen = positions[currentMoveIndex];
   
   return (
     <Card className="w-1/4 flex flex-col p-0 gap-1">
       <BoardContext.Provider value={{ currentFen }}>
-        {!executingSegmentation ? (
+        {!selectingOrientation ? (
           <>
         <ChessBoard />
         <History />

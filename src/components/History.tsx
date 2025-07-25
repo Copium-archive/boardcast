@@ -4,13 +4,13 @@ import { Chess } from 'chess.js';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Plus, RotateCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const History: React.FC = () => {
-  const {timestamps, setTimestamps, currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions, moveOverlay} = useContext(AppContext);
+  const {timestamps, setTimestamps, currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions, moveOverlay, interactiveChessboardRef} = useContext(AppContext);
   
   const currentTimestamp = useMemo(() => {
     const ts = timestamps[currentMoveIndex];
@@ -133,7 +133,6 @@ const History: React.FC = () => {
   useEffect(() => {
     const currentMoveElement = moveRefs.current[currentMoveIndex];
     if (currentMoveElement) {
-      // Use scrollIntoView to ensure the element is visible
       currentMoveElement.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
@@ -200,6 +199,11 @@ const History: React.FC = () => {
       setIsDialogOpen(false);
     }
   }; 
+
+  const handleRotate = () => {
+    // console.log('Rotate button clicked');
+    interactiveChessboardRef.current?.skipToOrientation()
+  };
 
   // Function to render moves in the chess.com/lichess style
   const renderMoves = () => {
@@ -328,31 +332,42 @@ const History: React.FC = () => {
             </Button>
           </div>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="h-8" variant="outline">
-                <Plus className="h-4 w-4 mr-1" /> PGN
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[80vh] flex flex-col">
-              <DialogHeader>
-                <DialogTitle>Import PGN</DialogTitle>
-              </DialogHeader>
-              <div className="flex-1 overflow-y-auto">
-                <Textarea
-                  placeholder="Paste PGN here..."
-                  value={importText}
-                  onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setImportText(e.target.value)}
-                  className="min-h-32 max-h-[50vh]"
-                />
-              </div>
-              <div>
-                <Button onClick={() => handleImportPgn(importText)} disabled={!importText.trim()} className='w-full'>
-                  Import
+          <div className="flex items-center gap-2">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-8" variant="outline">
+                  <Plus className="h-4 w-4 mr-1" /> PGN
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="max-h-[80vh] flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>Import PGN</DialogTitle>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto">
+                  <Textarea
+                    placeholder="Paste PGN here..."
+                    value={importText}
+                    onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setImportText(e.target.value)}
+                    className="min-h-32 max-h-[50vh]"
+                  />
+                </div>
+                <div>
+                  <Button onClick={() => handleImportPgn(importText)} disabled={!importText.trim()} className='w-full'>
+                    Import
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            
+            <Button 
+              size="sm" 
+              className="h-8" 
+              variant="outline"
+              onClick={handleRotate}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Navigation controls */}

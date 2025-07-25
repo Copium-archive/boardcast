@@ -43,6 +43,7 @@ interface InteractiveChessboardProps {
 // This allows parent components to call methods on this component via a ref.
 export interface InteractiveChessboardRef {
     finalize: () => void | undefined;
+    skipToOrientation: () => void | undefined;
 }
 
 function algebraicNotation(row: number, col: number): Square {
@@ -89,14 +90,15 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
     getPreviousFen,
 }, ref) => {
     const { isEditingContour, setIsEditingContour, 
-        executingSegmentation, setExecutingSegmentation, 
+        selectingOrientation, setSelectingOrientation, 
         boardOrientation,
         setCurrentMoveIndex,
         positions, setPositions, 
         moves, setMoves, setTimestamps,
         hoveredSquare, setHoveredSquare,
         enableDiscard,
-        setEnableDiscard
+        setEnableDiscard,
+        skippedToOrientation
     } = useContext(AppContext);
     const previewBoardOrientation = (boardOrientation.current + boardOrientation.shifted) % 4;
     const { videoRef, setROI, currentTime, setOverlays, createCheckpoint } = useContext(VideoContext);
@@ -171,8 +173,16 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
         }
     }
 
+    const skipToOrientation = () => {
+        if(boardCorners.length < 4) return;
+        skippedToOrientation.current = true;
+        setIsEditingContour(true);
+        setEditingPoints(boardCorners);
+    }
+
     useImperativeHandle(ref, () => ({
-        finalize
+        finalize,
+        skipToOrientation
     }));
 
     const appendMove = (newPosition: Chess, prefixLength?: number) => {
@@ -218,7 +228,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
             setEnableDiscard(true);
         }
         if (editingPoints.length >= 4) {
-            setExecutingSegmentation(true);
+            setSelectingOrientation(true);
             setIsEditingContour(false);
         }
     }, [editingPoints]);
@@ -284,7 +294,8 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
         const y = Math.max(0, svgP.y);
         
         const newPoint: Point = [x, y];
-        setEditingPoints(prev => [...prev, newPoint]);
+        // FIXED: Prevent adding more than 4 points
+        setEditingPoints(prev => prev.length < 4 ? [...prev, newPoint] : prev);
     };
 
     const handlePointClick = (event: React.MouseEvent, indexToRemove: number) => {
@@ -309,14 +320,14 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
         top: `${boundingBox.y_min}px`,
         width: `${boundingBox.x_max - boundingBox.x_min}px`,
         height: `${boundingBox.y_max - boundingBox.y_min}px`,
-        pointerEvents: isEditingContour || executingSegmentation ? 'auto' : 'none',
+        pointerEvents: isEditingContour || selectingOrientation ? 'auto' : 'none',
         zIndex: 1,
         cursor: isEditingContour ? 'crosshair' : 'default',
     };
     
     // Memoize points for the segmentation effect
     const segmentationEffectPoints = useMemo(() => {
-        if (!executingSegmentation || sortedEditingPoints.length !== 4 || !coord) return null;
+        if (!selectingOrientation || sortedEditingPoints.length !== 4 || !coord) return null;
 
         const boardTopRight = sortedEditingPoints[1]; // Get top-right from ordered corners
         const viewboxTopRight: Point = [coord.x_max+2, (coord.x_max / 10)];
@@ -325,7 +336,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
             arrowStart: viewboxTopRight,
             arrowEnd: boardTopRight,
         };
-    }, [executingSegmentation, sortedEditingPoints, coord]);
+    }, [selectingOrientation, sortedEditingPoints, coord]);
 
     return (
         <>
@@ -337,7 +348,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
             >
 
                 {/* Segmentation loading/highlighting effect */}
-                {executingSegmentation && segmentationEffectPoints && (
+                {selectingOrientation && segmentationEffectPoints && (
                     <g>
                         <defs>
                             {/* Define the arrowhead marker */}
@@ -392,7 +403,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
                 )}
 
                 {/* Chessboard outline */}
-                {!isEditingContour && boardOutline && !executingSegmentation && (
+                {!isEditingContour && boardOutline && !selectingOrientation && (
                     <polygon
                         points={boardOutline}
                         fill="transparent"
@@ -406,7 +417,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
 
                 {/* Chess squares preview */}
                 <g>
-                    {executingSegmentation && previewSquares.map((square) => {
+                    {selectingOrientation && previewSquares.map((square) => {
                         const isSelected = selectedSquare?.id === square.id;
                         const rotatedSquarePos = rotatePosition(square.square.row, square.square.col, previewBoardOrientation);
                         const isHovered =
@@ -442,7 +453,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
 
                 {/* Chess squares*/}
                 <g>
-                    {!isEditingContour && !executingSegmentation && squares.map((square) => {
+                    {!isEditingContour && !selectingOrientation && squares.map((square) => {
                         const isSelected = selectedSquare?.id === square.id;
                         const rotatedSquarePos = rotatePosition(square.square.row, square.square.col, previewBoardOrientation);
                         const isHovered =
@@ -476,7 +487,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
                     })}
                 </g>                
 
-                {!executingSegmentation && (
+                {!selectingOrientation && (
                     <>
                         {/* Corner points being edited */}
                         {editingPoints.map((point, index) => (
