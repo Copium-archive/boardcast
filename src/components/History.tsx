@@ -10,7 +10,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const History: React.FC = () => {
-  const {timestamps, setTimestamps, currentMoveIndex, setCurrentMoveIndex, moves, setMoves, positions, setPositions, moveOverlay, interactiveChessboardRef} = useContext(AppContext);
+  const {
+    timestamps, setTimestamps, 
+    currentMoveIndex, setCurrentMoveIndex, 
+    moves, setMoves, positions, 
+    setPositions, 
+    interactiveChessboardRef,
+    videoContainerRef
+  } = useContext(AppContext);
   
   const currentTimestamp = useMemo(() => {
     const ts = timestamps[currentMoveIndex];
@@ -88,22 +95,16 @@ const History: React.FC = () => {
   // Add keyboard event listener for 'w'/'s' keys and Ctrl+W/Ctrl+S combinations
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if the event target is an input, textarea, or if the import dialog is open
       const target = e.target as HTMLElement;
       const isInputActive = 
         target.tagName === 'INPUT' || 
         target.tagName === 'TEXTAREA'
-      
-      // Only process keyboard shortcuts if we're not focused on input elements
       if (!isInputActive) {
-        // Regular 'w' and 's' for previous/next move
         if (e.key === 'w' && !e.altKey) {
-          // Next position
           if (currentMoveIndex < positions.length - 1) {
             setCurrentMoveIndex((currentMoveIndex) => {return currentMoveIndex + 1;});
           }
         } else if (e.key === 's' && !e.altKey) {
-          // Previous position
           if (currentMoveIndex > 0) {
             setCurrentMoveIndex((currentMoveIndex) => {return currentMoveIndex - 1;});
           }
@@ -296,7 +297,7 @@ const History: React.FC = () => {
       newTimestamps[currentMoveIndex] = newTimestamp;
       return newTimestamps;
     })
-    moveOverlay(timestamps[currentMoveIndex], amount)
+    videoContainerRef.current?.moveOverlay(timestamps[currentMoveIndex], amount)
   }
 
   return (

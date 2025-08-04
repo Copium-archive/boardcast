@@ -44,6 +44,7 @@ interface InteractiveChessboardProps {
 export interface InteractiveChessboardRef {
     finalize: () => void | undefined;
     skipToOrientation: () => void | undefined;
+    clearEditingPoints: () => void | undefined;
 }
 
 function algebraicNotation(row: number, col: number): Square {
@@ -96,7 +97,6 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
         positions, setPositions, 
         moves, setMoves, setTimestamps,
         hoveredSquare, setHoveredSquare,
-        enableDiscard,
         setEnableDiscard,
         skippedToOrientation
     } = useContext(AppContext);
@@ -180,9 +180,14 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
         setEditingPoints(boardCorners);
     }
 
+    const clearEditingPoints = () => {
+        setEditingPoints([]);
+    }
+
     useImperativeHandle(ref, () => ({
         finalize,
-        skipToOrientation
+        skipToOrientation,
+        clearEditingPoints
     }));
 
     const appendMove = (newPosition: Chess, prefixLength?: number) => {
@@ -224,20 +229,22 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
 
     // Process chessboard segmentation when we have 4 points
     useEffect(() => { 
-        if(editingPoints.length > 0) {
-            setEnableDiscard(true);
-        }
         if (editingPoints.length >= 4) {
             setSelectingOrientation(true);
             setIsEditingContour(false);
         }
     }, [editingPoints]);
 
-    useEffect(() => {
-        if(enableDiscard === false) {
-            setEditingPoints([]);
+    useEffect(() => { 
+        if(isEditingContour) {
+            if(editingPoints.length > 0) setEnableDiscard(true);
+            else setEnableDiscard(false);
         }
-    }, [enableDiscard]);
+        else {
+            setEnableDiscard(false);
+        }
+    }, [editingPoints, isEditingContour]);
+
     
     const viewBox = useMemo(() => {
         const { x_max, y_max } = coord;
@@ -309,7 +316,7 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
     
     useEffect(() => {
         if (!videoRef.current?.paused) {
-            setEditingPoints([]);
+            clearEditingPoints();
             setSelectedSquare(null);
         }
     }, [currentTime, videoRef]);    

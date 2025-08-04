@@ -32,10 +32,10 @@ interface AppContextType {
   boardOrientation: {current: number, shifted: number};
   setBoardOrientation: React.Dispatch<React.SetStateAction<{current: number, shifted: number}>>;
   skippedToOrientation: React.RefObject<boolean>;
-  moveOverlay: (timestamp: number | null, amount: number) => void;
   hoveredSquare: {row: number, col: number} | null;
   setHoveredSquare: React.Dispatch<React.SetStateAction<{row: number, col: number} | null>>;
   interactiveChessboardRef: React.RefObject<InteractiveChessboardRef | null>;
+  videoContainerRef: React.RefObject<VideoContainerRef | null>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -57,14 +57,22 @@ export const AppContext = React.createContext<AppContextType>({
   boardOrientation: {current: 1, shifted: 0},
   skippedToOrientation: {current: false},
   setBoardOrientation: () => {},
-  moveOverlay: () => {},
   hoveredSquare: null,
   setHoveredSquare: () => {},
   
   interactiveChessboardRef: {
     current: {
       finalize: () => {},
-      skipToOrientation: () => {}
+      skipToOrientation: () => {},
+      clearEditingPoints: () => {}
+    }
+  },
+
+  videoContainerRef: {
+    current: {
+      calculateBoardSize: () => undefined,
+      calculateOffset: () => undefined,
+      moveOverlay: () => {}
     }
   }
 });
@@ -97,7 +105,7 @@ function App() {
   const videoContainerRef = useRef<VideoContainerRef>(null);
   const interactiveChessboardRef = useRef<InteractiveChessboardRef>(null);
 
-  const [isEditingContour, setIsEditingContour] = useState(true);
+  const [isEditingContour, setIsEditingContour] = useState(false);
   const [enableDiscard, setEnableDiscard] = useState(false);
   const [selectingOrientation, setSelectingOrientation] = useState(false);
   const skippedToOrientation = useRef<boolean>(false);
@@ -279,7 +287,7 @@ function App() {
 
   const handleEditButton = () => {
     if(enableDiscard === true) {
-      setEnableDiscard(false);
+      interactiveChessboardRef.current?.clearEditingPoints();
       return;
     }
     setIsEditingContour(!isEditingContour);
@@ -299,9 +307,9 @@ function App() {
           selectingOrientation, setSelectingOrientation,
           skippedToOrientation,
           boardOrientation, setBoardOrientation,
-          moveOverlay: (timestamp, amount) => { videoContainerRef.current?.moveOverlay(timestamp, amount) },
           hoveredSquare, setHoveredSquare,
-          interactiveChessboardRef
+          interactiveChessboardRef,
+          videoContainerRef
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">

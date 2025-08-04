@@ -4,6 +4,7 @@ import Timeline from "./TimeLine";
 import { AppContext } from "@/App";
 import DynamicChessOverlay from "./DynamicChessOverlay";
 import InteractiveChessboard from "./InteractiveChessboard";
+import ConfirmOverlayAction from "./ConfirmOverlayAction";
 
 interface Offset {
     x_offsetRatio: number;
@@ -77,8 +78,20 @@ export const VideoContext = React.createContext<VideoContextType>({
   setOverlays: () => {},
 });
 
+interface OverwritingProps { 
+  enable: boolean,
+  oldFen?: string,
+  newFen?: string
+}
+
+interface ChangingTimestampProps {
+  enable: boolean,
+  oldTimestamp?: number | null,
+  newTimestamp?: number | null
+}
+
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
-  const { positions, currentMoveIndex, setTimestamps, isEditingContour, interactiveChessboardRef} = React.useContext(AppContext);
+  const { positions, currentMoveIndex, timestamps, setTimestamps, isEditingContour, interactiveChessboardRef} = React.useContext(AppContext);
   const [corner, setCorner] = useState<Offset>({ x_offsetRatio: 0, y_offsetRatio: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
@@ -101,12 +114,20 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   const [coord, setCoord] = useState<{x_max: number, y_max:number}>({x_max : 0, y_max : 0});
   const isEnabled = (isVideoLoaded && !!videoPath); 
 
+  const [overwriting, setOverwriting] = useState<OverwritingProps>({enable: false});
+  const [changingTimestamp, setChangingTimestamp] = useState<ChangingTimestampProps>({enable: false});
+
   // useEffect(() => {
   //   console.log(">> timestamps", timestamps);
   //   console.log(">> current overlay", overlays[currentOverlayId].timestamp);
   //   console.log(">> checkpoints", checkpoints);
   //   console.log(">> currentTime", currentTime)
   // }, [timestamps, overlays, currentOverlayId, currentTime, checkpoints]);
+
+    useEffect(() => {
+    console.log(">> current overlays ", overlays);
+  }, [overlays]);
+
 
   // Pause video when entering edit mode
   useEffect(() => {
@@ -238,7 +259,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
 
   useEffect(() => {
     // Reset state when video changes
-    console.log("Video path changed:", videoPath);
     setIsVideoLoaded(false);
     setDuration(0);
   }, [videoPath]);
@@ -331,6 +351,22 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
       if(isPlaying === true) {
         return ;
       }
+      const isSameMove = overlays[currentOverlayId]?.moveIndex === currentMoveIndex;
+      const hasMove = (currentTime === overlays[currentOverlayId].timestamp);
+      const hasTimestamp = timestamps[currentMoveIndex] !== null;
+      
+      if(hasMove && isSameMove) return;
+      setOverwriting({enable: hasMove, oldFen: overlays[currentOverlayId].fen, newFen: positions[currentMoveIndex]});
+      setChangingTimestamp({
+          enable: hasTimestamp, 
+          oldTimestamp: timestamps[currentMoveIndex], 
+          newTimestamp: currentTime
+      });
+      if(!hasMove && !hasTimestamp) createOverlay();
+    }
+  }
+
+  const createOverlay = () => {
       setTimestamps((prev: (number | null)[]) => {
         const updated = [...prev];
         updated[currentMoveIndex] = currentTime;
@@ -338,26 +374,37 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
       });
       setOverlays((prev = []) => {
         const newOverlay = {
-          fen: positions[currentMoveIndex], // assuming positions[] holds FEN strings
-          moveIndex : currentMoveIndex, 
+          fen: positions[currentMoveIndex],
+          moveIndex: currentMoveIndex,
           timestamp: currentTime,
         };
-        const updated = [...prev, newOverlay];
+
+        const filtered = prev.filter(o => o.timestamp !== newOverlay.timestamp);
+
+        const updated = [...filtered, newOverlay];
         updated.sort((a, b) => a.timestamp - b.timestamp);
         return updated;
       });
       createCheckpoint(currentTime)
-    }
   }
 
-  const handleRemoveOverlay = () => {
-    setOverlays((prev) => {
-      const updated = [...prev];
-      updated.splice(currentOverlayId, 1);
-      return updated;
-    });
+  const removeOverlay = (overlayId: number = currentOverlayId, keepCheckpoint: boolean = true) => {
+    const moveIndex = overlays[overlayId].moveIndex;
+    const timestamp = overlays[overlayId].timestamp;
+
+    if(!keepCheckpoint) {
+      setCheckpoints(prev => prev.filter(checkpoint => checkpoint !== timestamp))
+    }
+    if(moveIndex !== undefined) {
+      setTimestamps((prev: (number | null)[]) => {
+        const updated = [...prev];
+        updated[moveIndex] = null;
+        return updated;
+      });
+    }
+    setOverlays(prev => prev.filter(overlay => overlay.timestamp !== timestamp));
     setCurrentOverlayId(0);
-  }
+  } 
 
   const getPreviousFen = (): string | undefined => {
     const currentOverlay = overlays[currentOverlayId];
@@ -379,6 +426,24 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         ROI, setROI,
         videoRef
         }}>
+        {(overwriting.enable || changingTimestamp.enable) &&
+          <ConfirmOverlayAction
+            overwriting = {overwriting}
+            changingTimestamp = {changingTimestamp}
+            handleConfirm={(keepOldCheckpoint: boolean) => {
+              if(changingTimestamp.enable) {
+                const overlayId = overlays.findIndex(overlay => overlay.moveIndex === currentMoveIndex);
+                if(overlayId !== -1) {
+                  removeOverlay(overlayId, keepOldCheckpoint);
+                }
+              }
+              createOverlay();
+              setOverwriting({enable: false}); 
+              setChangingTimestamp({enable: false});
+            }}
+            onCancel={() => {setOverwriting({enable: false}); setChangingTimestamp({enable: false});}}
+          />
+        }
         <div className="flex flex-col justify-center items-center w-full">
           <div className="w-full max-w-full aspect-video bg-black relative" onDoubleClick={handleOverlaying}>
             {overlays[currentOverlayId].fen && (videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ? (
@@ -387,7 +452,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               evaluation={null} 
               opacity={overlays[currentOverlayId].timestamp === currentTime ? 1 : 0.6}
               boundingBox={videoBoundingBox}
-              handleRemove={overlays[currentOverlayId].timestamp === currentTime ? handleRemoveOverlay : undefined}
+              handleRemove={overlays[currentOverlayId].timestamp === currentTime ? () => removeOverlay() : undefined}
               />
             ) : null}
             

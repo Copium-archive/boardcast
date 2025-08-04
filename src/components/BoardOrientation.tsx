@@ -102,7 +102,7 @@ function BoardOrientation() {
     const {boardOrientation, setBoardOrientation, 
           setSelectingOrientation, 
           hoveredSquare, setHoveredSquare, 
-          setEnableDiscard, interactiveChessboardRef, 
+          interactiveChessboardRef, 
           setIsEditingContour,
           skippedToOrientation} = useContext(AppContext);
     const previewBoardOrientation = (boardOrientation.current + boardOrientation.shifted) % 4;
@@ -120,7 +120,7 @@ function BoardOrientation() {
 
     const handleOk = () => {
       interactiveChessboardRef.current?.finalize();
-      setEnableDiscard(false);
+      interactiveChessboardRef.current?.clearEditingPoints();
       setSelectingOrientation(false);
       setBoardOrientation(
         (prev) => {
@@ -136,7 +136,7 @@ function BoardOrientation() {
     const handleCancel = () => {
       setSelectingOrientation(false);
       setIsEditingContour(!skippedToOrientation.current);
-      setEnableDiscard(false);
+      interactiveChessboardRef.current?.clearEditingPoints();
       setBoardOrientation(
         (prev) => {
           return { 
