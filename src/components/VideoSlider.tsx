@@ -67,7 +67,7 @@ const VideoSlider = ({
             // If the current time is within the segment, skip to the end of the segment
             const newTime = autoSkipSegments[autoSkipIndex].end;
             if (newTime < duration) {
-                onSeek([newTime / duration * 100]);
+                onSeek([newTime]);
             }
         }
     }, [autoSkipIndex, currentTime, isAutoSkipEnabled]);
@@ -75,9 +75,9 @@ const VideoSlider = ({
     return (
         <div className="w-full relative">
         <Slider
-            value={[currentTime / duration * 100]}
+            value={[currentTime]}
             min={0}
-            max={100}
+            max={duration}
             step={0.01}
             onValueChange={onSeek}
             className={`cursor-pointer ${!isEnabled ? 'pointer-events-none' : ''} no-thumb thick-slider`}

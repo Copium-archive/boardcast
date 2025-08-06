@@ -41,6 +41,12 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
   const [isAutoSkipEnabled, setIsAutoSkipEnabled] = useState(false);
   const [autoSkipSegments, setAutoSkipSegments] = useState<{ start: number; end: number }[]>([{ start: -1, end: -1 }]);
 
+  useEffect(() => {
+    console.log(">>> real time", currentTime);
+    console.log(">>> formatted time", formatTime(currentTime));
+  }, [isPlaying]);
+
+
   // Pause video when entering edit mode
   useEffect(() => {
     if (isEditingContour && videoRef.current && !videoRef.current.paused) {
@@ -236,11 +242,11 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
 
   // Format time to HH:MM:SS.S format (with 1 decimal place)
   const formatTime = (time: number): string => {
-    const hours = Math.floor(time / 3600);
-    const minutes = Math.floor((time % 3600) / 60);
-    const seconds = Math.floor(time % 60);
-    const decimals = Math.floor((time % 1) * 10);
-    return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}.${decimals}`;
+      const hours = Math.floor(time / 3600);
+      const minutes = Math.floor((time % 3600) / 60);
+      const seconds = Math.floor(time % 60);
+      const decimals = Math.round((time % 1) * 10);
+      return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}.${decimals}`;
   };
 
   // Initialize state from video element
@@ -421,11 +427,10 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
     videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + skipTime);
   };
 
-  // Seek to position (with higher precision)
+  // Seek to position
   const seek = (value: number[]) => {
     if (!videoRef.current || !isEnabled) return;
-    const position = value[0] / 100;
-    videoRef.current.currentTime = position * duration;
+    videoRef.current.currentTime = value[0];
   };
 
   // Change playback speed

@@ -4,7 +4,7 @@ import { Chess } from 'chess.js';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Plus, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Settings, RotateCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -19,18 +19,18 @@ const History: React.FC = () => {
     videoContainerRef
   } = useContext(AppContext);
   
+  const formatTime = (time: number): string => {
+      const hours = Math.floor(time / 3600);
+      const minutes = Math.floor((time % 3600) / 60);
+      const seconds = Math.floor(time % 60);
+      const decimals = Math.round((time % 1) * 10);
+      return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}.${decimals}`;
+  };
+
   const currentTimestamp = useMemo(() => {
     const ts = timestamps[currentMoveIndex];
-    if (ts == null) return "";
-    const sec = Math.floor(ts % 60);
-    const min = Math.floor((ts / 60) % 60);
-    const hr = Math.floor(ts / 3600);
-    const decimal = Math.floor((ts - Math.floor(ts)) * 10);
-    return [
-      hr.toString().padStart(2, "0"),
-      min.toString().padStart(2, "0"),
-      `${sec.toString().padStart(2, "0")}.${decimal}`
-    ].join(":");
+    return (ts === null) ? "" : formatTime(ts);
+    // formatTime(timestamps[currentMoveIndex]);
   }, [timestamps, currentMoveIndex]);
   const [importText, setImportText] = useState<string>("");
   
@@ -288,18 +288,6 @@ const History: React.FC = () => {
     return moveElements;
   };
 
-  const handleMoveTimestamp = (amount: number) => {
-    if(timestamps[currentMoveIndex] === null) return;
-    const shiftedTime = timestamps[currentMoveIndex] + amount;
-    const newTimestamp = Math.round(shiftedTime * 10) / 10;
-    setTimestamps((prevTimestamps) => {
-      const newTimestamps = [...prevTimestamps];
-      newTimestamps[currentMoveIndex] = newTimestamp;
-      return newTimestamps;
-    })
-    videoContainerRef.current?.moveOverlay(timestamps[currentMoveIndex], amount)
-  }
-
   return (
     <Card className="flex flex-col h-full border-0 rounded-none p-0">
       <CardContent className="p-0 flex flex-col h-full">
@@ -310,7 +298,7 @@ const History: React.FC = () => {
               size="icon" 
               className="h-8 w-5 rounded-none"
               onClick={() => {
-                handleMoveTimestamp(-0.1);
+                videoContainerRef.current?.moveOverlay(-0.1);
               }}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -319,25 +307,34 @@ const History: React.FC = () => {
               type="text" 
               value={currentTimestamp}
               className="h-8 w-24 text-xs bg-white rounded-none"
-              placeholder="00:00:00"
+              placeholder="hh:mm:ss"
               readOnly
             />
             <Button 
               size="icon" 
               className="h-8 w-5 rounded-none"
               onClick={() => {
-                handleMoveTimestamp(0.1);
+                videoContainerRef.current?.moveOverlay(0.1);
               }}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button 
+              size="sm" 
+              className="h-8" 
+              variant="outline"
+              onClick={handleRotate}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="h-8" variant="outline">
-                  <Plus className="h-4 w-4 mr-1" /> PGN
+                    <Settings className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[80vh] flex flex-col">
@@ -359,15 +356,6 @@ const History: React.FC = () => {
                 </div>
               </DialogContent>
             </Dialog>
-            
-            <Button 
-              size="sm" 
-              className="h-8" 
-              variant="outline"
-              onClick={handleRotate}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 

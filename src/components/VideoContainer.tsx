@@ -37,7 +37,7 @@ interface BoundingBox {
 export interface VideoContainerRef {
   calculateBoardSize: () => number | undefined;
   calculateOffset: () => Coordinate | undefined;
-  moveOverlay: (timestamp: number | null, amount: number) => void;
+  moveOverlay: (amount: number) => void;
 }
 
 interface VideoContextType {
@@ -86,6 +86,7 @@ interface OverwritingProps {
 
 interface ChangingTimestampProps {
   enable: boolean,
+  fen?: string,
   oldTimestamp?: number | null,
   newTimestamp?: number | null
 }
@@ -124,10 +125,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   //   console.log(">> currentTime", currentTime)
   // }, [timestamps, overlays, currentOverlayId, currentTime, checkpoints]);
 
-    useEffect(() => {
-    console.log(">> current overlays ", overlays);
-  }, [overlays]);
-
 
   // Pause video when entering edit mode
   useEffect(() => {
@@ -159,15 +156,22 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     moveOverlay
   }));
 
-  const moveOverlay = (timestamp: number | null, amount: number) => {
+  const moveOverlay = (amount: number) => {
     if (!videoRef.current || !isEnabled) return;
+    const timestamp = timestamps[currentMoveIndex];
     if(timestamp === null) return;
     
     const shiftedTime = timestamp + amount;
     const newTimestamp = Math.round(shiftedTime * 10) / 10;
     // roundedTime = Math.round(video.currentTime * 10) / 10
     if(newTimestamp < 0 || newTimestamp > duration) return;
+    if(checkpoints.includes(newTimestamp)) return;
 
+    setTimestamps((prevTimestamps) => {
+      const newTimestamps = [...prevTimestamps];
+      newTimestamps[currentMoveIndex] = newTimestamp;
+      return newTimestamps;
+    })
     setOverlays((prevOverlays) => {
       return prevOverlays.map(
         (overlay) => {
@@ -200,10 +204,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
 
     // Round timestamp to 1 decimal place
     const roundedTimestamp = Math.round(timestamp * 10) / 10;
-
-    // Check if a checkpoint already exists at this timestamp (within 0.1 seconds tolerance)
-    const existingCheckpoint = checkpoints.find(cp => Math.abs(cp - roundedTimestamp) < 0.1);
-    if (existingCheckpoint) return;
+    if (checkpoints.includes(roundedTimestamp)) return;
 
     setCheckpoints(prev => {
       const updated = [...prev, roundedTimestamp];
@@ -359,6 +360,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
       setOverwriting({enable: hasMove, oldFen: overlays[currentOverlayId].fen, newFen: positions[currentMoveIndex]});
       setChangingTimestamp({
           enable: hasTimestamp, 
+          fen: positions[currentMoveIndex],
           oldTimestamp: timestamps[currentMoveIndex], 
           newTimestamp: currentTime
       });
@@ -450,7 +452,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               <DynamicChessOverlay 
               currentFen={overlays[currentOverlayId].fen} 
               evaluation={null} 
-              opacity={overlays[currentOverlayId].timestamp === currentTime ? 1 : 0.6}
+              opacity={overlays[currentOverlayId].timestamp === currentTime ? 1 : 0.7}
               boundingBox={videoBoundingBox}
               handleRemove={overlays[currentOverlayId].timestamp === currentTime ? () => removeOverlay() : undefined}
               />

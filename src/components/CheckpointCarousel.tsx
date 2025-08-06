@@ -27,7 +27,7 @@ const CheckpointCarousel = ({
         const hours = Math.floor(time / 3600);
         const minutes = Math.floor((time % 3600) / 60);
         const seconds = Math.floor(time % 60);
-        const decimals = Math.floor((time % 1) * 10);
+        const decimals = Math.round((time % 1) * 10);
         return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}.${decimals}`;
     };
 
