@@ -48,6 +48,7 @@ interface VideoContextType {
   checkpoints: number[];
   setCheckpoints: React.Dispatch<React.SetStateAction<number[]>>;
   createCheckpoint: (timestamp: number) => void;
+  createOverlay: (newOverlay: OverlayType) => void;
   sizeRatio: number;
   setSizeRatio: React.Dispatch<React.SetStateAction<number>>;
   corner: Offset;
@@ -67,6 +68,7 @@ export const VideoContext = React.createContext<VideoContextType>({
   checkpoints: [],
   setCheckpoints: () => {},
   createCheckpoint: () => {},
+  createOverlay: () => {},
   sizeRatio: 0.8,
   setSizeRatio: () => {},
   corner: { x_offsetRatio: 0, y_offsetRatio: 0 },
@@ -163,7 +165,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     
     const shiftedTime = timestamp + amount;
     const newTimestamp = Math.round(shiftedTime * 10) / 10;
-    // roundedTime = Math.round(video.currentTime * 10) / 10
     if(newTimestamp < 0 || newTimestamp > duration) return;
     if(checkpoints.includes(newTimestamp)) return;
 
@@ -344,8 +345,8 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     }
   };
 
+  // Disable overlay creation when editing contour
   const handleOverlaying = () => {
-    // Disable overlay creation when editing contour
     if (isEditingContour) return;
     
     if(videoRef.current) {
@@ -368,26 +369,25 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     }
   }
 
-  const createOverlay = () => {
+  const createOverlay = (newOverlay: OverlayType = {
+    fen: positions[currentMoveIndex],
+    moveIndex: currentMoveIndex,
+    timestamp: currentTime,
+  }) => {
       setTimestamps((prev: (number | null)[]) => {
         const updated = [...prev];
-        updated[currentMoveIndex] = currentTime;
+        if(newOverlay.moveIndex !== undefined) {
+          updated[newOverlay.moveIndex] = newOverlay.timestamp;
+        }
         return updated;
       });
       setOverlays((prev = []) => {
-        const newOverlay = {
-          fen: positions[currentMoveIndex],
-          moveIndex: currentMoveIndex,
-          timestamp: currentTime,
-        };
-
         const filtered = prev.filter(o => o.timestamp !== newOverlay.timestamp);
-
         const updated = [...filtered, newOverlay];
         updated.sort((a, b) => a.timestamp - b.timestamp);
         return updated;
       });
-      createCheckpoint(currentTime)
+      createCheckpoint(newOverlay.timestamp)
   }
 
   const removeOverlay = (overlayId: number = currentOverlayId, keepCheckpoint: boolean = true) => {
@@ -408,12 +408,13 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     setCurrentOverlayId(0);
   } 
 
-  const getPreviousFen = (): string | undefined => {
+  const getPreviousPositionIndex = (): number | undefined => {
     const currentOverlay = overlays[currentOverlayId];
     if (currentOverlay && currentOverlay.timestamp < currentTime) {
-      return currentOverlay.fen;
+      return currentOverlay.moveIndex;
     }
-    return overlays[currentOverlayId - 1]?.fen;
+
+    return overlays[currentOverlayId - 1]?.moveIndex;
   }
 
   return (
@@ -422,6 +423,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         currentTime, setCurrentTime,
         checkpoints, setCheckpoints,
         createCheckpoint, 
+        createOverlay,
         sizeRatio, setSizeRatio,
         corner, setCorner,
         overlays, setOverlays,
@@ -464,7 +466,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               <InteractiveChessboard 
                   coord={coord}
                   boundingBox={videoBoundingBox}
-                  getPreviousFen={getPreviousFen}
+                  getPreviousPositionIndex={getPreviousPositionIndex}
                   ref={interactiveChessboardRef}
               />
             ) : null}

@@ -2,9 +2,15 @@ import React, { useState, useMemo, useEffect, useContext, forwardRef, useImperat
 import { AppContext } from '@/App';
 import { VideoContext } from './VideoContainer';
 import { segmentChessboard, validateChessboardCorners } from '../lib/chessboard-segmentation';
-import { Chess, Square } from 'chess.js';
+import { Square } from 'chess.js';
 
 type Point = [number, number];
+
+interface OverlayType {
+  fen?: string;
+  moveIndex: number;
+  timestamp: number;
+}
 
 interface ProcessedSquare {
   id: number;
@@ -36,7 +42,7 @@ interface Coord {
 interface InteractiveChessboardProps {
   coord: Coord;
   boundingBox: BoundingBox;
-  getPreviousFen: () => string | undefined;
+  getPreviousPositionIndex: () => number | undefined;
 }
 
 // NEW: Define the type for the exposed imperative handles.
@@ -88,20 +94,21 @@ function orderCorners(corners: Point[]): Point[] {
 const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveChessboardProps>(({
     coord,
     boundingBox,
-    getPreviousFen,
+    getPreviousPositionIndex,
 }, ref) => {
     const { isEditingContour, setIsEditingContour, 
         selectingOrientation, setSelectingOrientation, 
         boardOrientation,
-        setCurrentMoveIndex,
-        positions, setPositions, 
-        moves, setMoves, setTimestamps,
         hoveredSquare, setHoveredSquare,
         setEnableDiscard,
-        skippedToOrientation
+        skippedToOrientation,
+        chessboardRef,
+        setCurrentMoveIndex,
+        positions
     } = useContext(AppContext);
+    const { videoRef, setROI, currentTime, createOverlay} = useContext(VideoContext);
+
     const previewBoardOrientation = (boardOrientation.current + boardOrientation.shifted) % 4;
-    const { videoRef, setROI, currentTime, setOverlays, createCheckpoint } = useContext(VideoContext);
     
     const [selectedSquare, setSelectedSquare] = useState<ProcessedSquare | null>(null);
     
@@ -156,6 +163,20 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
         if (boardCorners.length !== 4) return '';
         return boardCorners.map(p => `${p[0]},${p[1]}`).join(' ');
     }, [boardCorners]);
+
+    const [pendingOverlay, setPendingOverlay] = useState<OverlayType|null>(null);
+
+    useEffect(() => {
+        if(pendingOverlay !== null) {
+            const newOverlay = {
+                fen: positions[pendingOverlay.moveIndex], 
+                ...pendingOverlay
+            }
+            createOverlay(newOverlay);
+            setCurrentMoveIndex(newOverlay.moveIndex); 
+            setPendingOverlay(null);
+        }
+    }, [pendingOverlay]);
     
     const finalize = () => {
         try {
@@ -189,43 +210,6 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
         skipToOrientation,
         clearEditingPoints
     }));
-
-    const appendMove = (newPosition: Chess, prefixLength?: number) => {
-        if(!videoRef.current) {
-            return;
-        }
-        // Determine how many moves/positions to keep as prefix
-        const keepCount = prefixLength !== undefined ? prefixLength : moves.length;
-        setPositions((prevPositions) => {
-            const newPositions = prevPositions.slice(0, keepCount + 1);
-            newPositions.push(newPosition.fen());
-            return newPositions;
-        });
-        setMoves((prevMoves) => {
-            const newMoves = prevMoves.slice(0, keepCount);
-            newMoves.push(newPosition.history({ verbose: true }).slice(-1)[0].san);
-            return newMoves;
-        });
-        setTimestamps((prevTimestamps) => {
-            const newTimestamps = prevTimestamps.slice(0, keepCount + 1);
-            newTimestamps.push(currentTime);
-            return newTimestamps;
-        });
-        setOverlays((prev = []) => {
-            const newOverlay = {
-                fen: newPosition.fen(),
-                moveIndex : keepCount+1, 
-                timestamp: currentTime,
-            };
-            const updated = [...prev, newOverlay];
-            updated.sort((a, b) => a.timestamp - b.timestamp);
-            return updated;
-        });
-        createCheckpoint(currentTime)
-        setCurrentMoveIndex(positions.length);
-
-        console.log("New position appended:", positions.length);
-    }
 
     // Process chessboard segmentation when we have 4 points
     useEffect(() => { 
@@ -269,17 +253,24 @@ const InteractiveChessboard = forwardRef<InteractiveChessboardRef, InteractiveCh
                     setSelectedSquare(null);
                     return;
                 }
-                const previousFen = getPreviousFen();
-                if (!previousFen) {
+                const prevMoveIndex = getPreviousPositionIndex();
+                if (prevMoveIndex === undefined) {
                     return;
                 }
                 const to_square = rotatePosition(selectedSquare.square.row, selectedSquare.square.col, previewBoardOrientation);
                 const from_square = rotatePosition(square.square.row, square.square.col, previewBoardOrientation);
-                const newPosition = new Chess(previousFen);
                 const from = algebraicNotation(from_square.row, from_square.col);
                 const to = algebraicNotation(to_square.row, to_square.col);
-                newPosition.move({ from, to, promotion: 'q' });
-                appendMove(newPosition);
+                chessboardRef.current?.insertMove(from, to, prevMoveIndex, () => {
+                    setPendingOverlay({
+                        moveIndex: (prevMoveIndex+1),
+                        timestamp: currentTime
+                    })
+                });
+                // setPendingOverlay({
+                //     moveIndex: (prevMoveIndex+1),
+                //     timestamp: currentTime
+                // })
                 setSelectedSquare(null);
             }
         }

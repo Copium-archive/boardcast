@@ -41,12 +41,6 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
   const [isAutoSkipEnabled, setIsAutoSkipEnabled] = useState(false);
   const [autoSkipSegments, setAutoSkipSegments] = useState<{ start: number; end: number }[]>([{ start: -1, end: -1 }]);
 
-  useEffect(() => {
-    console.log(">>> real time", currentTime);
-    console.log(">>> formatted time", formatTime(currentTime));
-  }, [isPlaying]);
-
-
   // Pause video when entering edit mode
   useEffect(() => {
     if (isEditingContour && videoRef.current && !videoRef.current.paused) {

@@ -15,7 +15,7 @@ export const BoardContext = React.createContext<BoardContextType>({
 });
 
 function AnalysisBoard() {
-  const {currentMoveIndex, positions, selectingOrientation} = useContext(AppContext);
+  const {currentMoveIndex, positions, selectingOrientation, chessboardRef} = useContext(AppContext);
   const currentFen = positions[currentMoveIndex];
   
   return (
@@ -23,7 +23,7 @@ function AnalysisBoard() {
       <BoardContext.Provider value={{ currentFen }}>
         {!selectingOrientation ? (
           <>
-        <ChessBoard />
+        <ChessBoard ref={chessboardRef}/>
         <History />
           </>
         ) : (

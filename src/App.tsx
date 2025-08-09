@@ -7,6 +7,7 @@ import { writeTextFile} from '@tauri-apps/plugin-fs';
 import AnalysisBoard from "./components/AnalysisBoard";
 import VideoContainer, { VideoContainerRef } from "./components/VideoContainer";
 import { InteractiveChessboardRef } from "./components/InteractiveChessboard";
+import { ChessboardRef } from "./components/ChessBoard";
 import ExportLoadingDialog from "./components/ExportLoadingDialog";
 import {useEffect, useRef, useState } from "react";
 import React from "react";
@@ -36,6 +37,7 @@ interface AppContextType {
   setHoveredSquare: React.Dispatch<React.SetStateAction<{row: number, col: number} | null>>;
   interactiveChessboardRef: React.RefObject<InteractiveChessboardRef | null>;
   videoContainerRef: React.RefObject<VideoContainerRef | null>;
+  chessboardRef: React.RefObject<ChessboardRef | null>;
 }
 
 export const AppContext = React.createContext<AppContextType>({
@@ -74,6 +76,12 @@ export const AppContext = React.createContext<AppContextType>({
       calculateOffset: () => undefined,
       moveOverlay: () => {}
     }
+  },
+
+  chessboardRef: {
+    current: {
+      insertMove: () => {}
+    }
   }
 });
 
@@ -99,11 +107,12 @@ function App() {
     "C:\\Users\\User\\Downloads\\Knight Sacrifice on the Streets_ Can He Win This Blitz Chess Showdown  #streetchess #blitzchess.mp4"
   );
   const decodedVideoPath = videoPath ? convertFileSrc(videoPath) : null;  
-  // useEffect(() => {console.log(">> ", videoPath)}, [videoPath]);
+  useEffect(() => {console.log(">> ", videoPath)}, [videoPath]);
   
   // Add ref for VideoContainer
   const videoContainerRef = useRef<VideoContainerRef>(null);
   const interactiveChessboardRef = useRef<InteractiveChessboardRef>(null);
+  const chessboardRef = useRef<ChessboardRef>(null);
 
   const [isEditingContour, setIsEditingContour] = useState(false);
   const [enableDiscard, setEnableDiscard] = useState(false);
@@ -114,7 +123,6 @@ function App() {
   const [boardOrientation, setBoardOrientation] = useState<{current: number, shifted: number}>(
     {current : 1, shifted : 0}
   );
-
 
   // Monitor evaluation progress
   useEffect(() => {
@@ -309,7 +317,8 @@ function App() {
           boardOrientation, setBoardOrientation,
           hoveredSquare, setHoveredSquare,
           interactiveChessboardRef,
-          videoContainerRef
+          videoContainerRef,
+          chessboardRef
         }}
           >
           <Card className="flex-1 flex flex-col p-2 gap-2">
