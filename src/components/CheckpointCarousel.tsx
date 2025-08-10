@@ -1,26 +1,24 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { Bookmark, X} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { VideoContext } from "./VideoContainer";
 
 interface CheckpointCarouselProps {
     checkpoints: number[];
     selectCheckpoint: (timestamp: number, index: number) => void;
-    removeCheckpoint: (timestamp: number) => void;
     checkpointIndex: number | null;
-    isEnabled?: boolean;
 }
 
 const CheckpointCarousel = ({
     checkpoints,
     selectCheckpoint,
-    removeCheckpoint,
     checkpointIndex,
-    isEnabled = true
 }: CheckpointCarouselProps) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const selectedCheckpointRef = useRef<HTMLDivElement>(null);
+    const {removeCheckpoint, isEnabled} = useContext(VideoContext);
 
     // Format time to HH:MM:SS.S format (with 1 decimal place)
     const formatTime = (time: number): string => {

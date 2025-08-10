@@ -7,7 +7,6 @@ interface VideoSliderProps {
   duration: number;
   checkpoints: number[];
   autoSkipSegments: { start: number; end: number }[];
-  isEnabled: boolean;
   isAutoSkipEnabled: boolean;
 }
 
@@ -15,11 +14,10 @@ const VideoSlider = ({
   currentTime, 
   duration, 
   checkpoints, 
-  isEnabled,
   autoSkipSegments, 
   isAutoSkipEnabled, 
 }: VideoSliderProps) => {
-    const {seek} = useContext(VideoContext);
+    const {seek, isEnabled} = useContext(VideoContext);
     const [autoSkipIndex, setAutoSkipIndex] = useState<number>(0);
         
     useEffect(() => {

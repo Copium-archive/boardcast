@@ -43,6 +43,7 @@ export interface VideoContainerRef {
 }
 
 interface VideoContextType {
+  isEnabled: boolean;
   isPlaying: boolean;
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   currentTime: number;
@@ -51,6 +52,7 @@ interface VideoContextType {
   setCheckpoints: React.Dispatch<React.SetStateAction<number[]>>;
   createCheckpoint: (timestamp: number) => void;
   createOverlay: (newOverlay: OverlayType) => void;
+  removeCheckpoint: (timestamp: number) => void;
   seek: (value: number[]) => void;
   sizeRatio: number;
   setSizeRatio: React.Dispatch<React.SetStateAction<number>>;
@@ -64,6 +66,7 @@ interface VideoContextType {
 }
 
 export const VideoContext = React.createContext<VideoContextType>({
+  isEnabled: false,
   isPlaying: false,
   setIsPlaying: () => {},
   currentTime: 0,
@@ -72,6 +75,7 @@ export const VideoContext = React.createContext<VideoContextType>({
   setCheckpoints: () => {},
   createCheckpoint: () => {},
   createOverlay: () => {},
+  removeCheckpoint: () => {},
   seek: () => {},
   sizeRatio: 0.8,
   setSizeRatio: () => {},
@@ -429,6 +433,19 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     setCurrentOverlayId(0);
   } 
 
+    // Remove specific checkpoint
+  const removeCheckpoint = (timestamp: number) => {
+    if (!isEnabled) return;
+    const overlayId = overlays.findIndex(overlay => overlay.timestamp === timestamp);
+    if(overlayId !== -1) {
+      removeOverlay(overlayId, false);
+    }
+    else {
+      setCheckpoints(prev => prev.filter(checkpoint => checkpoint !== timestamp));
+    }
+  };
+
+
   const filterOverlays = (maxMoveIndex: number) => {
     setOverlays(prev => prev.filter(overlay => (
       overlay.moveIndex === undefined || overlay.moveIndex <= maxMoveIndex
@@ -445,12 +462,14 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   }
 
   return (
-      <VideoContext.Provider value={{ 
+      <VideoContext.Provider value={{
+        isEnabled, 
         isPlaying, setIsPlaying,
         currentTime, setCurrentTime,
         checkpoints, setCheckpoints,
         createCheckpoint, 
         createOverlay,
+        removeCheckpoint,
         seek,
         sizeRatio, setSizeRatio,
         corner, setCorner,
@@ -523,7 +542,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
               <Timeline 
                 videoRef={videoRef} 
                 duration={duration} 
-                isEnabled={isEnabled} 
               />
           </div>
         </div>

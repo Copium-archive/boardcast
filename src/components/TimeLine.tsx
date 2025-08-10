@@ -15,12 +15,12 @@ import VideoSlider from "./VideoSlider";
 interface TimelineProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   duration: number;
-  isEnabled?: boolean;
   initialSkipTime?: number;
 }
 
-const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps) => {
+const Timeline = ({duration, initialSkipTime }: TimelineProps) => {
   const { 
+    isEnabled,
     videoRef,
     currentTime, setCurrentTime, 
     isPlaying, setIsPlaying,
@@ -215,14 +215,6 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
     videoRef.current.pause();
     setIsPlaying(false);
     setCheckpointIndex(index);
-  };
-
-  // Remove specific checkpoint
-  const removeCheckpoint = (timestamp: number) => {
-    if (!isEnabled) return;
-    
-    const updatedCheckpoints = checkpoints.filter(cp => cp !== timestamp);
-    setCheckpoints(updatedCheckpoints);
   };
 
   // Toggle mute
@@ -511,7 +503,6 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
             duration={duration}
             checkpoints={checkpoints}
             autoSkipSegments={autoSkipSegments}
-            isEnabled={isEnabled}
             isAutoSkipEnabled={isAutoSkipEnabled}
           />
 
@@ -519,9 +510,7 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
           <CheckpointCarousel
             checkpoints={checkpoints}
             selectCheckpoint={selectCheckpoint}
-            removeCheckpoint={removeCheckpoint}
             checkpointIndex={checkpointIndex}
-            isEnabled={isEnabled}
           />
           
           {/* Controls row */}
