@@ -30,7 +30,6 @@ const History: React.FC = () => {
   const currentTimestamp = useMemo(() => {
     const ts = timestamps[currentMoveIndex];
     return (ts === null) ? "" : formatTime(ts);
-    // formatTime(timestamps[currentMoveIndex]);
   }, [timestamps, currentMoveIndex]);
   const [importText, setImportText] = useState<string>("");
   
@@ -51,35 +50,39 @@ const History: React.FC = () => {
   const isLast = () => {
     return currentMoveIndex === moves.length;
   }
-  // Add keyboard event listener for Backspace to remove last move
+
   useEffect(() => {
-    const handleBackspace = (e: KeyboardEvent) => {
-      // Only trigger if not focused on input/textarea
+    const handleRemoveLastEntry = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInputActive =
         target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA';
+        target.tagName === 'TEXTAREA' ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (target as any)?.isContentEditable;
 
-      if (!isInputActive && e.key === 'Backspace') {
+      const isCtrlBackspace =
+        e.key === 'Backspace' && (e.ctrlKey || e.metaKey); // use only e.ctrlKey if you want strictly Ctrl
+
+      if (!isInputActive && isCtrlBackspace) {
+        e.preventDefault(); // avoid any browser nav side-effects
+
         if (!isLast()) {
           setCurrentMoveIndex(moves.length);
           return;
         }
         if (isLast() && moves.length > 0) {
-          setMoves(moves.slice(0, -1));
-          setPositions(positions.slice(0, -1));
-          setTimestamps(timestamps.slice(0, -1));
-          setCurrentMoveIndex((prevIndex) => {
-            return Math.max(0, prevIndex - 1);
-          });
+          setMoves(m => m.slice(0, -1));
+          setPositions(p => p.slice(0, -1));
+          setTimestamps(t => t.slice(0, -1));
+          setCurrentMoveIndex(i => Math.max(0, i - 1));
+          videoContainerRef.current?.filterOverlays(currentMoveIndex - 1);
         }
       }
     };
-    window.addEventListener('keydown', handleBackspace);
-    return () => window.removeEventListener('keydown', handleBackspace);
-  }, [moves, positions, currentMoveIndex]);
 
-  
+    window.addEventListener('keydown', handleRemoveLastEntry);
+    return () => window.removeEventListener('keydown', handleRemoveLastEntry);
+  }, [moves, positions, currentMoveIndex, isLast]);
   
   // Add a ref for the scroll area
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -175,8 +178,6 @@ const History: React.FC = () => {
       chess.loadPgn(pgnText);
     } catch (error) {
       console.error('Invalid PGN', error);
-      setMoves(tempMoves);
-      setPositions(tempPositions);
       return;
     }
     
@@ -193,6 +194,7 @@ const History: React.FC = () => {
     setPositions(tempPositions);
     setTimestamps(Array(tempPositions.length).fill(null));    
     setCurrentMoveIndex(0);
+    videoContainerRef.current?.filterOverlays(0);
     
     // Reset dialog state if needed
     if (shouldCloseDialog) {
@@ -303,12 +305,22 @@ const History: React.FC = () => {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Input 
-              type="text" 
+            <Input
+              type="text"
               value={currentTimestamp}
               className="h-8 w-24 text-xs bg-white rounded-none"
               placeholder="hh:mm:ss"
               readOnly
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const t = timestamps[currentMoveIndex];
+                if (t != null) {
+                  videoContainerRef.current?.seek([t]);
+                }
+              }}
+              tabIndex={-1}
+              onFocus={(e) => e.currentTarget.blur()}
             />
             <Button 
               size="icon" 

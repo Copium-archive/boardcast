@@ -74,7 +74,9 @@ export const AppContext = React.createContext<AppContextType>({
     current: {
       calculateBoardSize: () => undefined,
       calculateOffset: () => undefined,
-      moveOverlay: () => {}
+      moveOverlay: () => {},
+      filterOverlays: () => {},
+      seek:() => {}
     }
   },
 

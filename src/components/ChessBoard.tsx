@@ -141,7 +141,13 @@ function inferFen(fenString: string) {
 
 const ChessBoard = forwardRef<ChessboardRef>((props, ref) => {
   const boardColors = createChessboardColors();
-  const {setTimestamps, currentMoveIndex, setCurrentMoveIndex, positions, setPositions, moves, setMoves} = useContext(AppContext);
+  const {
+    setTimestamps, 
+    currentMoveIndex, setCurrentMoveIndex, 
+    positions, setPositions, 
+    moves, setMoves,
+    videoContainerRef
+  } = useContext(AppContext);
   const {currentFen} = useContext(BoardContext);
   const {evaluation, bestMove} = useEval({ currentFen});  
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
@@ -201,8 +207,10 @@ const ChessBoard = forwardRef<ChessboardRef>((props, ref) => {
       return newTimestamps;
     });
     setCurrentMoveIndex((prevIndex) => prevIndex + 1);
+    if(prefixLength < moves.length) {
+      videoContainerRef.current?.filterOverlays(prefixLength);
+    }
   }
-
 
   const insertMove = (
     currentSquare: string, 
@@ -349,7 +357,7 @@ const ChessBoard = forwardRef<ChessboardRef>((props, ref) => {
               newPosition.move(moveOptions);
               appendMove(newPosition, newLine.index);
               setNewLine(null);
-              newLine.callback()
+              newLine.callback();
             }}
             
             onCancel={() => {

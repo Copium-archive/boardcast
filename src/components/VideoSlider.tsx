@@ -1,5 +1,6 @@
 import { Slider } from "@/components/ui/slider";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
+import { VideoContext } from "./VideoContainer";
 
 interface VideoSliderProps {
   currentTime: number;
@@ -8,7 +9,6 @@ interface VideoSliderProps {
   autoSkipSegments: { start: number; end: number }[];
   isEnabled: boolean;
   isAutoSkipEnabled: boolean;
-  onSeek: (value: number[]) => void;
 }
 
 const VideoSlider = ({ 
@@ -18,8 +18,8 @@ const VideoSlider = ({
   isEnabled,
   autoSkipSegments, 
   isAutoSkipEnabled, 
-  onSeek 
 }: VideoSliderProps) => {
+    const {seek} = useContext(VideoContext);
     const [autoSkipIndex, setAutoSkipIndex] = useState<number>(0);
         
     useEffect(() => {
@@ -67,7 +67,7 @@ const VideoSlider = ({
             // If the current time is within the segment, skip to the end of the segment
             const newTime = autoSkipSegments[autoSkipIndex].end;
             if (newTime < duration) {
-                onSeek([newTime]);
+                seek([newTime]);
             }
         }
     }, [autoSkipIndex, currentTime, isAutoSkipEnabled]);
@@ -79,7 +79,7 @@ const VideoSlider = ({
             min={0}
             max={duration}
             step={0.01}
-            onValueChange={onSeek}
+            onValueChange={seek}
             className={`cursor-pointer ${!isEnabled ? 'pointer-events-none' : ''} no-thumb thick-slider`}
             disabled={!isEnabled}
         />

@@ -5,6 +5,8 @@ import { useContext } from 'react';
 import ChessBoard from './ChessBoard'; 
 import History from './History';
 import BoardOrientation from './BoardOrientation';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { Clapperboard } from 'lucide-react';
 
 interface BoardContextType {
   currentFen: string;
@@ -15,7 +17,14 @@ export const BoardContext = React.createContext<BoardContextType>({
 });
 
 function AnalysisBoard() {
-  const {currentMoveIndex, positions, selectingOrientation, chessboardRef} = useContext(AppContext);
+  const {
+    currentMoveIndex, 
+    positions, 
+    selectingOrientation, 
+    chessboardRef, 
+    videoContainerRef,
+    timestamps
+  } = useContext(AppContext);
   const currentFen = positions[currentMoveIndex];
   
   return (
@@ -23,7 +32,23 @@ function AnalysisBoard() {
       <BoardContext.Provider value={{ currentFen }}>
         {!selectingOrientation ? (
           <>
-        <ChessBoard ref={chessboardRef}/>
+        <ContextMenu>
+          <ContextMenuTrigger>
+            <ChessBoard ref={chessboardRef}/>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onClick={() => {
+                const t = timestamps[currentMoveIndex];
+                if (t != null) {
+                  videoContainerRef.current?.seek([t]);
+                }
+              }}
+            >
+              <Clapperboard/>
+              Go to frame
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         <History />
           </>
         ) : (

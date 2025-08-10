@@ -421,12 +421,6 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
     videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + skipTime);
   };
 
-  // Seek to position
-  const seek = (value: number[]) => {
-    if (!videoRef.current || !isEnabled) return;
-    videoRef.current.currentTime = value[0];
-  };
-
   // Change playback speed
   const changePlaybackRate = (change: number) => {
     if (!videoRef.current || !isEnabled) return;
@@ -519,7 +513,6 @@ const Timeline = ({duration, isEnabled = true, initialSkipTime }: TimelineProps)
             autoSkipSegments={autoSkipSegments}
             isEnabled={isEnabled}
             isAutoSkipEnabled={isAutoSkipEnabled}
-            onSeek={seek}
           />
 
           {/* Checkpoint Carousel */}

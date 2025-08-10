@@ -3,28 +3,30 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { Slider } from '@/components/ui/slider';
 import { VideoContext } from '@/components/VideoContainer';
 import ChessOverlay from '@/components/ChessOverlay';
+import { ArrowLeftRight, ArrowUpDown, MapPin } from 'lucide-react';
 
 type ChessOverlayProps = {
-  currentFen: string;
-  evaluation: number | null;
-  opacity?: number;
-  size?:number;
-  path_resolver?: (path: string) => string;
-  movement?: {
-    move: string | null;
-    progress: number;
-    previousFen?: string;
-  };
+	currentFen: string;
+	evaluation: number | null;
+	opacity?: number;
+	size?:number;
+	path_resolver?: (path: string) => string;
+	movement?: {
+		move: string | null;
+		progress: number;
+		previousFen?: string;
+	};
 };
 
 type DynamicChessOverlayProps = Omit<ChessOverlayProps, 'sizeRatio'> & {
-  boundingBox: {
-    x_min: number;
-    y_min: number;
-    x_max: number;
-    y_max: number;
-  };
-  handleRemove?: () => void;
+	boundingBox: {
+		x_min: number;
+		y_min: number;
+		x_max: number;
+		y_max: number;
+	};
+	handleRemove?: () => void;
+	goToPosition?: () => void;
 };
 
 interface Coordinate {
@@ -39,7 +41,8 @@ function DynamicChessOverlay({
   opacity = 1,
   movement = { move: null, progress: 1 },
   boundingBox,
-  handleRemove
+  handleRemove,
+  goToPosition
 }: DynamicChessOverlayProps) {
 	// Size ratio state
 	const {sizeRatio, setSizeRatio, corner, setCorner} = useContext(VideoContext);
@@ -183,10 +186,17 @@ function DynamicChessOverlay({
 				</div>
 			</ContextMenuTrigger>
 			<ContextMenuContent className="w-64">
+				<ContextMenuItem onClick={goToPosition}>
+					<MapPin/>
+					Go to position
+				</ContextMenuItem>
+
 				<ContextMenuItem onClick={centerHorizontally}>
+					<ArrowLeftRight/>
 					Center Horizontally
 				</ContextMenuItem>
 				<ContextMenuItem onClick={centerVertically}>
+					<ArrowUpDown/>
 					Center Vertically
 				</ContextMenuItem>
 				<div className="px-2 py-3">

@@ -38,6 +38,8 @@ export interface VideoContainerRef {
   calculateBoardSize: () => number | undefined;
   calculateOffset: () => Coordinate | undefined;
   moveOverlay: (amount: number) => void;
+  filterOverlays: (maxMoveIndex: number) => void;
+  seek: (value: number[]) => void;
 }
 
 interface VideoContextType {
@@ -49,6 +51,7 @@ interface VideoContextType {
   setCheckpoints: React.Dispatch<React.SetStateAction<number[]>>;
   createCheckpoint: (timestamp: number) => void;
   createOverlay: (newOverlay: OverlayType) => void;
+  seek: (value: number[]) => void;
   sizeRatio: number;
   setSizeRatio: React.Dispatch<React.SetStateAction<number>>;
   corner: Offset;
@@ -69,6 +72,7 @@ export const VideoContext = React.createContext<VideoContextType>({
   setCheckpoints: () => {},
   createCheckpoint: () => {},
   createOverlay: () => {},
+  seek: () => {},
   sizeRatio: 0.8,
   setSizeRatio: () => {},
   corner: { x_offsetRatio: 0, y_offsetRatio: 0 },
@@ -94,7 +98,13 @@ interface ChangingTimestampProps {
 }
 
 const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ videoPath }, ref) => {
-  const { positions, currentMoveIndex, timestamps, setTimestamps, isEditingContour, interactiveChessboardRef} = React.useContext(AppContext);
+  const { 
+    positions, 
+    currentMoveIndex, setCurrentMoveIndex,
+    timestamps, setTimestamps, 
+    isEditingContour, 
+    interactiveChessboardRef
+  } = React.useContext(AppContext);
   const [corner, setCorner] = useState<Offset>({ x_offsetRatio: 0, y_offsetRatio: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
@@ -127,6 +137,11 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
   //   console.log(">> currentTime", currentTime)
   // }, [timestamps, overlays, currentOverlayId, currentTime, checkpoints]);
 
+  useEffect(() => {
+    setCheckpoints([]);
+    setOverlays([{timestamp: -1}]);
+    setTimestamps(prev => Array(prev.length).fill(null));
+  }, [setTimestamps, videoPath])
 
   // Pause video when entering edit mode
   useEffect(() => {
@@ -152,10 +167,17 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     return { x, y };
   }
 
+  const seek = (value: number[]) => {
+    if (!videoRef.current || !isEnabled) return;
+    videoRef.current.currentTime = value[0];
+  };
+
   useImperativeHandle(ref, () => ({
     calculateBoardSize,
     calculateOffset,
-    moveOverlay
+    moveOverlay,
+    filterOverlays,
+    seek
   }));
 
   const moveOverlay = (amount: number) => {
@@ -198,21 +220,6 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     })
     videoRef.current.currentTime = newTimestamp;
   }
-
-
-  const createCheckpoint = (timestamp: number) => {
-    if (!isVideoLoaded && !!videoPath) return;
-
-    // Round timestamp to 1 decimal place
-    const roundedTimestamp = Math.round(timestamp * 10) / 10;
-    if (checkpoints.includes(roundedTimestamp)) return;
-
-    setCheckpoints(prev => {
-      const updated = [...prev, roundedTimestamp];
-      updated.sort((a, b) => a - b);
-      return updated;
-    });
-  };
 
   // Function to update video bounding box
   const updateVideoBoundingBox = () => {
@@ -369,6 +376,20 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     }
   }
 
+  const createCheckpoint = (timestamp: number) => {
+    if (!isVideoLoaded && !!videoPath) return;
+
+    // Round timestamp to 1 decimal place
+    const roundedTimestamp = Math.round(timestamp * 10) / 10;
+    if (checkpoints.includes(roundedTimestamp)) return;
+
+    setCheckpoints(prev => {
+      const updated = [...prev, roundedTimestamp];
+      updated.sort((a, b) => a - b);
+      return updated;
+    });
+  };
+
   const createOverlay = (newOverlay: OverlayType = {
     fen: positions[currentMoveIndex],
     moveIndex: currentMoveIndex,
@@ -408,6 +429,12 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
     setCurrentOverlayId(0);
   } 
 
+  const filterOverlays = (maxMoveIndex: number) => {
+    setOverlays(prev => prev.filter(overlay => (
+      overlay.moveIndex === undefined || overlay.moveIndex <= maxMoveIndex
+    )));
+  }
+
   const getPreviousPositionIndex = (): number | undefined => {
     const currentOverlay = overlays[currentOverlayId];
     if (currentOverlay && currentOverlay.timestamp < currentTime) {
@@ -424,6 +451,7 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         checkpoints, setCheckpoints,
         createCheckpoint, 
         createOverlay,
+        seek,
         sizeRatio, setSizeRatio,
         corner, setCorner,
         overlays, setOverlays,
@@ -450,13 +478,14 @@ const VideoContainer = forwardRef<VideoContainerRef, VideoContainerProps>(({ vid
         }
         <div className="flex flex-col justify-center items-center w-full">
           <div className="w-full max-w-full aspect-video bg-black relative" onDoubleClick={handleOverlaying}>
-            {overlays[currentOverlayId].fen && (videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ? (
+            {overlays[currentOverlayId] && overlays[currentOverlayId].fen && (videoBoundingBox.x_max - videoBoundingBox.x_min) > 0 && (videoBoundingBox.y_max - videoBoundingBox.y_min) > 0 ? (
               <DynamicChessOverlay 
               currentFen={overlays[currentOverlayId].fen} 
               evaluation={null} 
               opacity={overlays[currentOverlayId].timestamp === currentTime ? 1 : 0.7}
               boundingBox={videoBoundingBox}
               handleRemove={overlays[currentOverlayId].timestamp === currentTime ? () => removeOverlay() : undefined}
+              goToPosition={() => setCurrentMoveIndex(prev => overlays[currentOverlayId].moveIndex ?? prev)}
               />
             ) : null}
             
