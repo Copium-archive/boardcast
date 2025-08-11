@@ -1,26 +1,20 @@
+// render.mjs
 import {bundle} from '@remotion/bundler';
-import {renderMedia, selectComposition} from '@remotion/renderer';
-import path from 'path';
- 
-const compositionId = 'Chess';
-const bundleLocation = await bundle({
-  entryPoint: path.resolve('./remotion/index.ts'),
-  webpackOverride: (config) => config,
-});
- 
-const inputProps = {};
-const composition = await selectComposition({
-  serveUrl: bundleLocation,
-  id: compositionId,
-  inputProps,
-});
- 
+import {selectComposition, renderMedia} from '@remotion/renderer';
+import path from 'node:path';
+
+const ENTRY = path.resolve('./remotion/index.ts');              // your Remotion entry
+const COMPOSITION_ID = 'Chess';                                 // your composition id
+const OUTPUT = path.resolve('./sample_exporting/chess-animation.mp4'); // output file
+
+const bundleLocation = await bundle({entryPoint: ENTRY});
+const composition = await selectComposition({serveUrl: bundleLocation, id: COMPOSITION_ID});
+
 await renderMedia({
-  composition,
   serveUrl: bundleLocation,
+  composition,
   codec: 'h264',
-  outputLocation: `out/${compositionId}.mp4`,
-  inputProps,
+  outputLocation: OUTPUT,
 });
- 
-console.log('Render done!');
+
+console.log('✅ Render done:', OUTPUT);

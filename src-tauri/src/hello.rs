@@ -9,6 +9,14 @@ use serde_json::Value;
 use tauri_plugin_shell::ShellExt;
 use tokio::time::timeout;
 
+#[derive(Debug, serde::Serialize)]
+struct FFmpegResult {
+    success: bool,
+    output: String,
+    error: String,
+    return_code: Option<i32>,
+}
+
 async fn render_chess_animation() -> Result<String, String> {
     let current_dir: PathBuf = env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
@@ -272,14 +280,6 @@ fn get_multiple_overlay_command(
     args.push(output_file.to_string());
 
     Ok(args)
-}
-
-#[derive(Debug, serde::Serialize)]
-struct FFmpegResult {
-    success: bool,
-    output: String,
-    error: String,
-    return_code: Option<i32>,
 }
 
 async fn execute_ffmpeg_command(app: tauri::AppHandle, args: &[String]) -> Result<FFmpegResult, String> {
